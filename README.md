@@ -8,11 +8,16 @@ Each skill is a self-contained folder with a `SKILL.md` as the single source of 
 
 ### Claude Code
 
-Add the marketplace and install the plugin using `/plugin` inside Claude Code:
+Add the marketplace and install skills using `/plugin` inside Claude Code:
 
 ```
 /plugin marketplace add vespaai-playground/skills
-/plugin install vespa-skills
+/plugin install schema-authoring
+/plugin install app-package
+/plugin install query-builder
+/plugin install feed-operations
+/plugin install vespa-cli
+/plugin install pyvespa
 ```
 
 Or from a local clone:
@@ -22,7 +27,7 @@ git clone git@github.com:vespaai-playground/skills.git
 ```
 ```
 /plugin marketplace add ./skills
-/plugin install vespa-skills
+/plugin install schema-authoring
 ```
 
 ### OpenAI Codex

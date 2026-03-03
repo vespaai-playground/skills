@@ -8,15 +8,21 @@ Each skill is a self-contained folder with a `SKILL.md` as the single source of 
 
 ### Claude Code
 
-```bash
-claude install-skill github:vespaai-playground/skills
+Add the marketplace and install skills using the `/plugin` command inside Claude Code:
+
+```
+/plugin marketplace add vespaai-playground/skills
+/plugin install <skill-name>
 ```
 
 Or from a local clone:
 
 ```bash
 git clone git@github.com:vespaai-playground/skills.git
-claude install-skill ./skills
+```
+```
+/plugin marketplace add ./skills
+/plugin install <skill-name>
 ```
 
 ### OpenAI Codex

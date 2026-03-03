@@ -1,0 +1,8 @@
+{
+  "name": "vespa-skills",
+  "version": "1.0.0",
+  "description": "AI coding assistant skills for Vespa.ai — schema authoring, application packages, queries, and feeding",
+  "author": "Vespa.ai",
+  "homepage": "https://docs.vespa.ai",
+  "repository": "https://github.com/vespaai-playground/skills"
+}

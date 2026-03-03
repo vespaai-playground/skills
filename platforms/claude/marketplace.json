@@ -1,0 +1,34 @@
+{
+  "skills": [
+    {
+      "name": "schema-authoring",
+      "source": "schema-authoring/SKILL.md",
+      "skills": ["vespa-schema"],
+      "description": "Write and validate Vespa schema (.sd) files — field types, indexing, tensors, HNSW, structs, fieldsets"
+    },
+    {
+      "name": "app-package",
+      "source": "app-package/SKILL.md",
+      "skills": ["vespa-app-package"],
+      "description": "Scaffold Vespa application packages — directory layout, services.xml, embedders, deployment"
+    },
+    {
+      "name": "query-builder",
+      "source": "query-builder/SKILL.md",
+      "skills": ["vespa-query"],
+      "description": "Build YQL queries and design rank profiles — operators, grouping, 3-phase ranking, ML models"
+    },
+    {
+      "name": "feed-operations",
+      "source": "feed-operations/SKILL.md",
+      "skills": ["vespa-feed"],
+      "description": "Document CRUD and bulk feeding — document JSON, partial updates, vespa feed CLI, conditional writes"
+    },
+    {
+      "name": "vespa-cli",
+      "source": "vespa-cli/SKILL.md",
+      "skills": ["vespa-cli"],
+      "description": "Vespa CLI for deploying, managing, and debugging applications — targets, auth, deployment lifecycle, logs, CI/CD"
+    }
+  ]
+}

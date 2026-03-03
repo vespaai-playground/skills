@@ -1,0 +1,51 @@
+{
+  "name": "vespa-skills",
+  "version": "1.0.0",
+  "description": "AI coding assistant skills for Vespa.ai \u2014 schema authoring, application packages, queries, and feeding",
+  "skills": [
+    {
+      "name": "app-package",
+      "description": "Scaffold and configure Vespa application packages, including services.xml, schemas, deployment.xml, query profiles, and embedder components.",
+      "source": "app-package/SKILL.md",
+      "docs": [
+        "app-package/docs/services-xml.md"
+      ]
+    },
+    {
+      "name": "feed-operations",
+      "description": "Vespa document CRUD operations and bulk feeding \u2014 covers document ID format, JSON wire format for put/update/remove, REST API endpoints, CLI commands, partial updates, conditional writes, bulk feeding, and document visiting/export.",
+      "source": "feed-operations/SKILL.md",
+      "docs": [
+        "feed-operations/docs/document-json.md",
+        "feed-operations/docs/feed-clients.md"
+      ]
+    },
+    {
+      "name": "query-builder",
+      "description": "Build Vespa YQL queries and design rank profiles. Covers YQL syntax, operators, grouping, rank-profile phases, ML model integration, and query tensor inputs.",
+      "source": "query-builder/SKILL.md",
+      "docs": [
+        "query-builder/docs/grouping.md",
+        "query-builder/docs/rank-features.md",
+        "query-builder/docs/yql-operators.md"
+      ]
+    },
+    {
+      "name": "schema-authoring",
+      "description": "Writing, validating, and evolving Vespa .sd schema files \u2014 covers field types, indexing pipelines, match modes, tensors, rank profiles, structs, fieldsets, and common pitfalls.",
+      "source": "schema-authoring/SKILL.md",
+      "docs": [
+        "schema-authoring/docs/field-types.md",
+        "schema-authoring/docs/schema-patterns.md"
+      ]
+    },
+    {
+      "name": "vespa-cli",
+      "description": "Vespa CLI for deploying, managing, and debugging Vespa.ai applications -- covers target configuration, authentication, deployment lifecycle, production pipelines, document operations, log inspection, testing, and CI/CD integration.",
+      "source": "vespa-cli/SKILL.md",
+      "docs": [
+        "vespa-cli/docs/cli-reference.md"
+      ]
+    }
+  ]
+}

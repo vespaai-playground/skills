@@ -19,6 +19,12 @@ Each skill is a self-contained folder with a `SKILL.md` file as the primary refe
 - Vespa document CRUD operations and bulk feeding — covers document ID format, JSON wire format for put/update/remove, REST API endpoints, CLI commands, partial updates, conditional writes, bulk feeding, and document visiting/export.
 - Reference docs: `docs/document-json.md`, `docs/feed-clients.md`
 
+### pyvespa
+
+- Path: `pyvespa/SKILL.md`
+- Python API for Vespa.ai — define schemas, deploy applications, feed documents, query, and manage Vespa from Python using pyvespa.
+- Reference docs: `docs/application-api.md`, `docs/package-api.md`
+
 ### query-builder
 
 - Path: `query-builder/SKILL.md`

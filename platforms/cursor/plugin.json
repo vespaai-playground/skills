@@ -21,6 +21,15 @@
       ]
     },
     {
+      "name": "pyvespa",
+      "description": "Python API for Vespa.ai \u2014 define schemas, deploy applications, feed documents, query, and manage Vespa from Python using pyvespa.",
+      "source": "pyvespa/SKILL.md",
+      "docs": [
+        "pyvespa/docs/application-api.md",
+        "pyvespa/docs/package-api.md"
+      ]
+    },
+    {
       "name": "query-builder",
       "description": "Build Vespa YQL queries and design rank profiles. Covers YQL syntax, operators, grouping, rank-profile phases, ML model integration, and query tensor inputs.",
       "source": "query-builder/SKILL.md",

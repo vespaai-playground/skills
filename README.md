@@ -52,6 +52,7 @@ git clone git@github.com:vespaai-playground/skills.git
 |-------|-------------|
 | [`app-package`](app-package/SKILL.md) | Scaffold and configure Vespa application packages, including services.xml, schemas, deployment.xml, query profiles, and embedder components. |
 | [`feed-operations`](feed-operations/SKILL.md) | Vespa document CRUD operations and bulk feeding — covers document ID format, JSON wire format for put/update/remove, REST API endpoints, CLI commands, partial updates, conditional writes, bulk feeding, and document visiting/export. |
+| [`pyvespa`](pyvespa/SKILL.md) | Python API for Vespa.ai — define schemas, deploy applications, feed documents, query, and manage Vespa from Python using pyvespa. |
 | [`query-builder`](query-builder/SKILL.md) | Build Vespa YQL queries and design rank profiles. Covers YQL syntax, operators, grouping, rank-profile phases, ML model integration, and query tensor inputs. |
 | [`schema-authoring`](schema-authoring/SKILL.md) | Writing, validating, and evolving Vespa .sd schema files — covers field types, indexing pipelines, match modes, tensors, rank profiles, structs, fieldsets, and common pitfalls. |
 | [`vespa-cli`](vespa-cli/SKILL.md) | Vespa CLI for deploying, managing, and debugging Vespa.ai applications -- covers target configuration, authentication, deployment lifecycle, production pipelines, document operations, log inspection, testing, and CI/CD integration. |

@@ -29,6 +29,12 @@
       "source": "vespa-cli/SKILL.md",
       "skills": ["vespa-cli"],
       "description": "Vespa CLI for deploying, managing, and debugging applications — targets, auth, deployment lifecycle, logs, CI/CD"
+    },
+    {
+      "name": "pyvespa",
+      "source": "pyvespa/SKILL.md",
+      "skills": ["pyvespa"],
+      "description": "Python API for Vespa.ai — define schemas, deploy applications, feed documents, query, and manage Vespa from Python"
     }
   ]
 }

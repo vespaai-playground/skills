@@ -14,7 +14,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
-EXCLUDE_DIRS = {"node_modules", ".git", "platforms", ".claude"}
+EXCLUDE_DIRS = {"node_modules", ".git", ".claude", ".claude-plugin", ".cursor-plugin"}
 
 # ---------------------------------------------------------------------------
 # YAML frontmatter parser (minimal, no dependencies)
@@ -108,56 +108,23 @@ def generate_agents_md(skills: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Cursor plugin.json generation
-# ---------------------------------------------------------------------------
-
-def generate_cursor_plugin(skills: list[dict]) -> str:
-    claude_plugin_path = os.path.join(ROOT, "platforms", "claude", "plugin.json")
-    with open(claude_plugin_path, encoding="utf-8") as f:
-        base = json.load(f)
-
-    cursor_plugin = {
-        "name": base.get("name", "vespa-skills"),
-        "version": base.get("version", "1.0.0"),
-        "description": base.get("description", ""),
-        "skills": [],
-    }
-    for s in skills:
-        docs_dir = os.path.join(ROOT, s["_dir"], "docs")
-        doc_files = []
-        if os.path.isdir(docs_dir):
-            doc_files = sorted(
-                f"{s['_dir']}/docs/{f}"
-                for f in os.listdir(docs_dir)
-                if f.endswith(".md")
-            )
-        cursor_plugin["skills"].append({
-            "name": s.get("name", s["_dir"]),
-            "description": s.get("description", ""),
-            "source": f"{s['_dir']}/SKILL.md",
-            "docs": doc_files,
-        })
-    return json.dumps(cursor_plugin, indent=2) + "\n"
-
-
-# ---------------------------------------------------------------------------
 # Marketplace validation
 # ---------------------------------------------------------------------------
 
 def validate_marketplace(skills: list[dict]) -> list[str]:
-    marketplace_path = os.path.join(ROOT, "platforms", "claude", "marketplace.json")
+    marketplace_path = os.path.join(ROOT, ".claude-plugin", "marketplace.json")
     if not os.path.exists(marketplace_path):
-        return ["platforms/claude/marketplace.json not found"]
+        return [".claude-plugin/marketplace.json not found"]
 
     with open(marketplace_path, encoding="utf-8") as f:
         marketplace = json.load(f)
 
-    mp_names = {entry["name"] for entry in marketplace.get("skills", [])}
+    mp_names = {entry["name"] for entry in marketplace.get("plugins", [])}
     skill_names = {s.get("name", s["_dir"]) for s in skills}
 
     errors = []
     for name in skill_names - mp_names:
-        errors.append(f"Skill '{name}' missing from marketplace.json")
+        errors.append(f"Skill '{name}' missing from .claude-plugin/marketplace.json")
     for name in mp_names - skill_names:
         errors.append(f"Marketplace entry '{name}' has no matching SKILL.md")
     return errors
@@ -239,28 +206,24 @@ def main():
 
     # Generate artifacts
     agents_md = generate_agents_md(skills)
-    cursor_json = generate_cursor_plugin(skills)
     readme_content = update_readme(skills)
 
     if check_mode:
         print("Running in --check mode (validating, not writing)...\n")
         drift = False
 
-        for path, content in [
-            (os.path.join(ROOT, "AGENTS.md"), agents_md),
-            (os.path.join(ROOT, "platforms", "cursor", "plugin.json"), cursor_json),
-        ]:
-            rel = os.path.relpath(path, ROOT)
-            if not os.path.exists(path):
-                print(f"  DRIFT: {rel} does not exist")
-                drift = True
-            else:
-                with open(path, encoding="utf-8") as f:
-                    if f.read() != content:
-                        print(f"  DRIFT: {rel} is out of date")
-                        drift = True
-                    else:
-                        print(f"  OK: {rel}")
+        agents_path = os.path.join(ROOT, "AGENTS.md")
+        rel = os.path.relpath(agents_path, ROOT)
+        if not os.path.exists(agents_path):
+            print(f"  DRIFT: {rel} does not exist")
+            drift = True
+        else:
+            with open(agents_path, encoding="utf-8") as f:
+                if f.read() != agents_md:
+                    print(f"  DRIFT: {rel} is out of date")
+                    drift = True
+                else:
+                    print(f"  OK: {rel}")
 
         if readme_content is not None:
             readme_path = os.path.join(ROOT, "README.md")
@@ -280,9 +243,6 @@ def main():
     else:
         print("Generating artifacts...\n")
         write_if_changed(os.path.join(ROOT, "AGENTS.md"), agents_md)
-        write_if_changed(
-            os.path.join(ROOT, "platforms", "cursor", "plugin.json"), cursor_json
-        )
         if readme_content is not None:
             write_if_changed(os.path.join(ROOT, "README.md"), readme_content)
         print("\nDone.")

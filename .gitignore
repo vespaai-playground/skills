@@ -21,7 +21,7 @@ env/
 *~
 .DS_Store
 
-# Claude Code
+# Claude Code local state
 .claude/
 
 # Node (in case of tooling)

@@ -8,11 +8,11 @@ Each skill is a self-contained folder with a `SKILL.md` as the single source of 
 
 ### Claude Code
 
-Add the marketplace and install skills using the `/plugin` command inside Claude Code:
+Add the marketplace and install the plugin using `/plugin` inside Claude Code:
 
 ```
 /plugin marketplace add vespaai-playground/skills
-/plugin install <skill-name>
+/plugin install vespa-skills
 ```
 
 Or from a local clone:
@@ -22,7 +22,7 @@ git clone git@github.com:vespaai-playground/skills.git
 ```
 ```
 /plugin marketplace add ./skills
-/plugin install <skill-name>
+/plugin install vespa-skills
 ```
 
 ### OpenAI Codex
@@ -37,16 +37,16 @@ git clone git@github.com:vespaai-playground/skills.git
 
 ```bash
 git clone git@github.com:vespaai-playground/skills.git
-# Gemini CLI reads AGENTS.md via the contextFileName in platforms/gemini/extension.json
+# Gemini CLI reads AGENTS.md automatically when present in the working tree
 ```
 
 ### Cursor
 
-Clone the repo and point Cursor to the generated plugin manifest:
+Clone the repo — Cursor discovers skills via `.cursor-plugin/`:
 
 ```bash
 git clone git@github.com:vespaai-playground/skills.git
-# Point Cursor to platforms/cursor/plugin.json
+# Cursor reads .cursor-plugin/plugin.json automatically
 ```
 
 > **Private repos**: All platforms work with local clones, so public vs private doesn't matter — just clone via SSH and the tools read from the local filesystem.

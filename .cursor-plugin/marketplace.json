@@ -1,0 +1,17 @@
+{
+  "name": "vespa-skills",
+  "owner": {
+    "name": "Vespa.ai"
+  },
+  "metadata": {
+    "description": "AI coding assistant skills for Vespa.ai",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "vespa-skills",
+      "source": ".",
+      "description": "AI coding assistant skills for Vespa.ai — schema authoring, application packages, queries, feeding, CLI, and pyvespa"
+    }
+  ]
+}

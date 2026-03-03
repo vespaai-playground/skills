@@ -1,39 +1,47 @@
 {
-  "skills": [
+  "name": "vespa-skills",
+  "owner": {
+    "name": "Vespa.ai"
+  },
+  "metadata": {
+    "description": "AI coding assistant skills for Vespa.ai",
+    "version": "1.0.0"
+  },
+  "plugins": [
     {
       "name": "schema-authoring",
-      "source": "schema-authoring/SKILL.md",
-      "skills": ["vespa-schema"],
+      "source": "./schema-authoring",
+      "skills": "./",
       "description": "Write and validate Vespa schema (.sd) files — field types, indexing, tensors, HNSW, structs, fieldsets"
     },
     {
       "name": "app-package",
-      "source": "app-package/SKILL.md",
-      "skills": ["vespa-app-package"],
+      "source": "./app-package",
+      "skills": "./",
       "description": "Scaffold Vespa application packages — directory layout, services.xml, embedders, deployment"
     },
     {
       "name": "query-builder",
-      "source": "query-builder/SKILL.md",
-      "skills": ["vespa-query"],
+      "source": "./query-builder",
+      "skills": "./",
       "description": "Build YQL queries and design rank profiles — operators, grouping, 3-phase ranking, ML models"
     },
     {
       "name": "feed-operations",
-      "source": "feed-operations/SKILL.md",
-      "skills": ["vespa-feed"],
+      "source": "./feed-operations",
+      "skills": "./",
       "description": "Document CRUD and bulk feeding — document JSON, partial updates, vespa feed CLI, conditional writes"
     },
     {
       "name": "vespa-cli",
-      "source": "vespa-cli/SKILL.md",
-      "skills": ["vespa-cli"],
+      "source": "./vespa-cli",
+      "skills": "./",
       "description": "Vespa CLI for deploying, managing, and debugging applications — targets, auth, deployment lifecycle, logs, CI/CD"
     },
     {
       "name": "pyvespa",
-      "source": "pyvespa/SKILL.md",
-      "skills": ["pyvespa"],
+      "source": "./pyvespa",
+      "skills": "./",
       "description": "Python API for Vespa.ai — define schemas, deploy applications, feed documents, query, and manage Vespa from Python"
     }
   ]

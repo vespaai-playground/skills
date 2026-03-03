@@ -1,6 +1,0 @@
-{
-  "name": "vespa-skills",
-  "version": "1.0.0",
-  "description": "AI coding assistant skills for Vespa.ai",
-  "contextFileName": "AGENTS.md"
-}

@@ -1,0 +1,46 @@
+{
+  "skill_name": "schema-authoring",
+  "skill_path": "schema-authoring",
+  "evals": [
+    {
+      "id": 1,
+      "name": "basic-text-search",
+      "prompt": "Create a Vespa schema for a 'article' document type with fields: title (string, searchable), body (string, searchable with BM25 support), author (string, filterable), published_date (long, sortable), and url (string, stored only). Include a default fieldset combining title and body, and a basic BM25 rank profile.",
+      "expected_output": "A valid .sd schema file with correct field types, appropriate indexing pipelines (index for text fields, attribute for filter/sort), enable-bm25 on fields used in bm25() ranking, a fieldset, and a rank profile using bm25().",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "name": "hybrid-search-embeddings",
+      "prompt": "I need a Vespa schema called 'product' for hybrid search. It should have: a title and description for text search with BM25, a 768-dimensional float embedding field with HNSW indexing using angular distance, and a hybrid rank profile that combines BM25 text scores with vector closeness in a second phase. The rank profile should accept a query embedding tensor as input.",
+      "expected_output": "Schema with string fields having enable-bm25, a tensor<float>(x[768]) field with HNSW config, distance-metric angular, and a rank profile with query input tensor, first-phase text scoring, second-phase combining normalize_linear of text and vector scores.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 3,
+      "name": "fix-broken-schema",
+      "prompt": "This Vespa schema has several bugs. Find and fix all of them:\n\n```sd\nschema products {\n    document product {\n        field title type string {\n            indexing: summary | index\n        }\n        field category type string {\n            indexing: attribute\n            match: exact\n        }\n        field embedding type tensor<float>(d[384]) {\n            indexing: summary | attribute\n            index {\n                hnsw {\n                    max-links-per-node: 16\n                }\n            }\n        }\n    }\n    rank-profile semantic {\n        inputs {\n            query(q) tensor<float>(x[384])\n        }\n        first-phase {\n            expression: closeness(field, embedding)\n        }\n    }\n    rank-profile text_search {\n        first-phase {\n            expression: bm25(title)\n        }\n    }\n}\n```",
+      "expected_output": "Fixed schema addressing: (1) schema/document name mismatch (products vs product), (2) match:exact on attribute-only field has no effect, (3) tensor dimension name mismatch (d[384] vs x[384] in query), (4) missing distance-metric on embedding, (5) bm25(title) used without enable-bm25 on title field, (6) missing summary on category field.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 4,
+      "name": "ecommerce-filtering",
+      "prompt": "Create a Vespa schema for an e-commerce product catalog. I need: product_id (unique identifier, fast lookup), name and description (full-text searchable), brand (filterable and searchable), price (numeric, filterable and sortable), categories as an array of strings (filterable), in_stock boolean (fast filter), rating (float), and a map of custom attributes (string to string, with filterable keys). Use appropriate attribute modifiers for performance.",
+      "expected_output": "Schema with product_id using attribute + fast-search, text fields with index, brand with index + attribute + fast-search, price with attribute + fast-search, categories as array<string> with attribute + fast-search, in_stock bool with attribute + fast-search + rank:filter, rating with attribute, map with struct-field indexing.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 5,
+      "name": "parent-child-reference",
+      "prompt": "I'm building a Vespa app with two document types: 'merchant' (parent) with fields name, city, and trust_score; and 'offer' (child) with fields title, price, and a reference to the merchant. The offer schema should import the merchant's name and trust_score so I can use them in ranking without joins at query time. Create both schemas.",
+      "expected_output": "Two .sd files: merchant schema with name/city/trust_score fields (attributes), and offer schema with reference<merchant> field, import field statements for merchant name and trust_score, and possibly a rank profile using the imported fields.",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}

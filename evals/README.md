@@ -2,23 +2,44 @@
 
 Measure whether Vespa skills improve Claude's output quality on realistic tasks.
 
+## Two Eval Types
+
+**Quality evals** (`run_evals.py`) — Do skills produce better outputs?
+- Injects skill content directly into the prompt (controlled comparison)
+- Runs each task with and without the skill, compares outputs
+- Graded with deterministic checks + LLM rubrics
+
+**Trigger evals** (`run_trigger_evals.py`) — Do skills activate on the right prompts?
+- Uses `--plugin-dir` so Claude discovers skills naturally
+- Parses stream-json events to detect which skills were invoked
+- Tests both should-trigger and should-NOT-trigger cases
+
 ## Quick Start
 
 ```bash
-# Run all evals for schema-authoring (with-skill + baseline)
-python evals/run_evals.py
+# Quality evals: run all for schema-authoring
+uv run python evals/run_evals.py
 
-# Run a single eval
-python evals/run_evals.py --eval basic-text-search
+# Quality evals: run a single eval
+uv run python evals/run_evals.py --eval basic-text-search
 
-# After reviewing outputs, add assertions to evals.json, then grade
-python evals/grade.py --iteration 1
+# Grade outputs (after reviewing and adding assertions to evals.json)
+uv run python evals/grade.py --iteration 1
 
 # Grade with LLM rubric (needs ANTHROPIC_API_KEY)
-python evals/grade.py --iteration 1 --llm-rubric
+uv run python evals/grade.py --iteration 1 --llm-rubric
 
 # Aggregate results into benchmark.json
-python evals/aggregate.py --iteration 1
+uv run python evals/aggregate.py --iteration 1
+
+# Trigger evals: test skill invocation
+uv run python evals/run_trigger_evals.py
+
+# Trigger evals: single test
+uv run python evals/run_trigger_evals.py --id sa-03
+
+# Trigger evals: multiple trials for reliability
+uv run python evals/run_trigger_evals.py --trials 3
 ```
 
 ## Workflow
@@ -37,14 +58,16 @@ Following the [skill-creator eval methodology](https://github.com/anthropics/ski
 
 ```
 evals/
-├── evals.json          # Test cases (prompts + assertions)
-├── config.py           # Settings (model, timeout, paths)
-├── run_evals.py        # Runner: Claude CLI with/without skill
-├── grade.py            # Graders: deterministic + LLM rubric
-├── aggregate.py        # Benchmark aggregation
+├── evals.json              # Quality eval test cases (prompts + assertions)
+├── trigger_evals.csv       # Trigger eval test cases (should/should-not trigger)
+├── config.py               # Settings (model, timeout, paths)
+├── run_evals.py            # Quality eval runner
+├── run_trigger_evals.py    # Trigger eval runner
+├── grade.py                # Graders: deterministic + LLM rubric
+├── aggregate.py            # Benchmark aggregation
 └── README.md
 
-schema-authoring-workspace/     # Created by run_evals.py (gitignored)
+schema-authoring-workspace/     # Created by runners (gitignored)
 └── iteration-1/
     ├── eval-basic-text-search/
     │   ├── eval_metadata.json
@@ -66,9 +89,9 @@ Add assertions to `evals.json` after reviewing first outputs:
 ```json
 {
   "assertions": [
-    {"type": "file_exists", "path": "*.sd"},
-    {"type": "content_contains", "path": "*.sd", "pattern": "schema product"},
-    {"type": "content_matches", "path": "*.sd", "pattern": "tensor<float>\\(x\\[768\\]\\)"}
+    {"type": "file_exists", "path": "*.sd", "text": "Schema file exists"},
+    {"type": "content_contains", "path": "*.sd", "pattern": "schema product", "text": "Correct schema name"},
+    {"type": "content_matches", "path": "*.sd", "pattern": "tensor<float>\\(x\\[768\\]\\)", "text": "768-dim tensor"}
   ]
 }
 ```
@@ -89,8 +112,27 @@ Add assertions to `evals.json` after reviewing first outputs:
 | `EVAL_TRIALS` | `1` | Trials per task (for pass@k) |
 | `CLAUDE_CLI` | `claude` | Path to Claude CLI |
 
+## Plugin Setup
+
+The `skills/` directory contains symlinks to the skill directories, enabling
+Claude Code plugin discovery via `--plugin-dir .`. This is used by the trigger
+eval runner.
+
+If the `vespa-support` plugin (from `vespa-claude`) is installed at user scope
+and interferes with trigger evals, disable it for this workspace:
+
+```json
+// .claude/settings.local.json
+{
+  "enabledPlugins": {
+    "vespa-support@vespa-claude": false
+  }
+}
+```
+
 ## Adding Evals for Other Skills
 
-1. Create a new `evals.json` (or add to existing) with `skill_name` and `skill_path` pointing to the skill directory
-2. Run: `python evals/run_evals.py --evals-json path/to/evals.json`
+1. Add test cases to `evals.json` (or create a new one) with `skill_name` and `skill_path`
+2. Run: `uv run python evals/run_evals.py --evals-json path/to/evals.json`
 3. Same grade/aggregate workflow applies
+4. For trigger evals, add rows to `trigger_evals.csv` and update `SKILL_TRIGGER_PATTERNS` in `run_trigger_evals.py`

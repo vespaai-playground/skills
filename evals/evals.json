@@ -5,42 +5,99 @@
     {
       "id": 1,
       "name": "basic-text-search",
-      "prompt": "Create a Vespa schema for a 'article' document type with fields: title (string, searchable), body (string, searchable with BM25 support), author (string, filterable), published_date (long, sortable), and url (string, stored only). Include a default fieldset combining title and body, and a basic BM25 rank profile.",
+      "prompt": "Create a Vespa schema for a 'article' document type with fields: title (string, searchable), body (string, searchable with BM25 support), author (string, filterable), published_date (long, sortable), and url (string, stored only). Include a default fieldset combining title and body, and a basic BM25 rank profile. Write the schema to schemas/article.sd",
       "expected_output": "A valid .sd schema file with correct field types, appropriate indexing pipelines (index for text fields, attribute for filter/sort), enable-bm25 on fields used in bm25() ranking, a fieldset, and a rank profile using bm25().",
       "files": [],
-      "assertions": []
+      "assertions": [
+        {"type": "file_exists", "path": "*.sd", "text": "Schema .sd file exists"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "schema article", "text": "Schema named 'article'"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "document article", "text": "Document name matches schema name"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 present on indexed fields"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "bm25(title)", "text": "Rank profile uses bm25(title)"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "bm25(body)", "text": "Rank profile uses bm25(body)"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "fieldset default", "text": "Default fieldset defined"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field author type string", "text": "Author field is string type"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "attribute", "text": "Attribute indexing used for filter/sort fields"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field url type string", "text": "URL field present"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field published_date type long", "text": "published_date is long type"}
+      ],
+      "llm_rubric": "Check this Vespa schema for best practices: (1) Do ALL fields used in bm25() ranking have 'index: enable-bm25'? This is critical. (2) Are filter fields (author) using 'attribute' indexing, not 'index'? (3) Does the url field use 'summary' only (stored, not searchable)? (4) Is published_date using 'attribute' for sortability? (5) Does the fieldset combine title and body?"
     },
     {
       "id": 2,
       "name": "hybrid-search-embeddings",
-      "prompt": "I need a Vespa schema called 'product' for hybrid search. It should have: a title and description for text search with BM25, a 768-dimensional float embedding field with HNSW indexing using angular distance, and a hybrid rank profile that combines BM25 text scores with vector closeness in a second phase. The rank profile should accept a query embedding tensor as input.",
+      "prompt": "I need a Vespa schema called 'product' for hybrid search. It should have: a title and description for text search with BM25, a 768-dimensional float embedding field with HNSW indexing using angular distance, and a hybrid rank profile that combines BM25 text scores with vector closeness in a second phase. The rank profile should accept a query embedding tensor as input. Write the schema to schemas/product.sd",
       "expected_output": "Schema with string fields having enable-bm25, a tensor<float>(x[768]) field with HNSW config, distance-metric angular, and a rank profile with query input tensor, first-phase text scoring, second-phase combining normalize_linear of text and vector scores.",
       "files": [],
-      "assertions": []
+      "assertions": [
+        {"type": "file_exists", "path": "*.sd", "text": "Schema .sd file exists"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "schema product", "text": "Schema named 'product'"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 on text fields"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "tensor<float>\\(x\\[768\\]\\)", "text": "768-dim float tensor field"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "hnsw", "text": "HNSW index configured"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "angular", "text": "Angular distance metric"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "second-phase", "text": "Second-phase reranking present"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "closeness(field, embedding)", "text": "Uses closeness() for vector scoring"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "normalize_linear", "text": "Uses normalize_linear for score combination"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "query\\(.*\\) tensor<float>\\(x\\[768\\]\\)", "text": "Query input tensor with matching dimensions"}
+      ],
+      "llm_rubric": "Evaluate this hybrid search schema: (1) Do text fields have both 'index' and 'enable-bm25'? (2) Is the tensor dimension consistent between the field and query input (both x[768])? (3) Does the rank profile properly combine BM25 and closeness scores with normalization in a second phase? (4) Are HNSW parameters reasonable (max-links-per-node 8-32, neighbors-to-explore 100-500)? (5) Is distance-metric explicitly set to angular?"
     },
     {
       "id": 3,
       "name": "fix-broken-schema",
-      "prompt": "This Vespa schema has several bugs. Find and fix all of them:\n\n```sd\nschema products {\n    document product {\n        field title type string {\n            indexing: summary | index\n        }\n        field category type string {\n            indexing: attribute\n            match: exact\n        }\n        field embedding type tensor<float>(d[384]) {\n            indexing: summary | attribute\n            index {\n                hnsw {\n                    max-links-per-node: 16\n                }\n            }\n        }\n    }\n    rank-profile semantic {\n        inputs {\n            query(q) tensor<float>(x[384])\n        }\n        first-phase {\n            expression: closeness(field, embedding)\n        }\n    }\n    rank-profile text_search {\n        first-phase {\n            expression: bm25(title)\n        }\n    }\n}\n```",
-      "expected_output": "Fixed schema addressing: (1) schema/document name mismatch (products vs product), (2) match:exact on attribute-only field has no effect, (3) tensor dimension name mismatch (d[384] vs x[384] in query), (4) missing distance-metric on embedding, (5) bm25(title) used without enable-bm25 on title field, (6) missing summary on category field.",
+      "prompt": "This Vespa schema has several bugs. Find and fix ALL of them. Write the corrected schema to schemas/products.sd\n\nHere is the broken schema:\n\nschema products {\n    document product {\n        field title type string {\n            indexing: summary | index\n        }\n        field category type string {\n            indexing: attribute\n            match: exact\n        }\n        field embedding type tensor<float>(d[384]) {\n            indexing: summary | attribute\n            index {\n                hnsw {\n                    max-links-per-node: 16\n                }\n            }\n        }\n    }\n    rank-profile semantic {\n        inputs {\n            query(q) tensor<float>(x[384])\n        }\n        first-phase {\n            expression: closeness(field, embedding)\n        }\n    }\n    rank-profile text_search {\n        first-phase {\n            expression: bm25(title)\n        }\n    }\n}",
+      "expected_output": "Fixed schema file addressing: (1) schema/document name mismatch (products vs product), (2) match:exact on attribute-only field has no effect — needs index added, (3) tensor dimension name mismatch (d[384] vs x[384] in query), (4) missing distance-metric on embedding, (5) bm25(title) used without enable-bm25 on title field.",
       "files": [],
-      "assertions": []
+      "assertions": [
+        {"type": "file_exists", "path": "*.sd", "text": "Fixed schema written to .sd file"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "schema (\\w+)\\s*\\{[\\s\\S]*document \\1", "text": "Schema and document names match"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 added to title field"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "distance-metric", "text": "Distance metric specified on embedding"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "tensor<float>\\((x|d)\\[384\\]\\)[\\s\\S]*query\\(q\\) tensor<float>\\(\\1\\[384\\]\\)", "text": "Tensor dimensions consistent between field and query"}
+      ],
+      "llm_rubric": "The original schema had these bugs: (1) schema name 'products' vs document name 'product' — must match, (2) 'match: exact' on attribute-only category field has no effect, (3) tensor dimension d[384] vs x[384] mismatch between field and query, (4) missing distance-metric on embedding, (5) bm25(title) without enable-bm25. Grade how many bugs were correctly identified and fixed. Also check the fix didn't introduce new bugs (e.g., adding 'index' to the tensor indexing pipeline is incorrect — tensors use HNSW, not inverted index)."
     },
     {
       "id": 4,
       "name": "ecommerce-filtering",
-      "prompt": "Create a Vespa schema for an e-commerce product catalog. I need: product_id (unique identifier, fast lookup), name and description (full-text searchable), brand (filterable and searchable), price (numeric, filterable and sortable), categories as an array of strings (filterable), in_stock boolean (fast filter), rating (float), and a map of custom attributes (string to string, with filterable keys). Use appropriate attribute modifiers for performance.",
+      "prompt": "Create a Vespa schema for an e-commerce product catalog. I need: product_id (unique identifier, fast lookup), name and description (full-text searchable), brand (filterable and searchable), price (numeric, filterable and sortable), categories as an array of strings (filterable), in_stock boolean (fast filter), rating (float), and a map of custom attributes (string to string, with filterable keys). Use appropriate attribute modifiers for performance. Write the schema to schemas/product.sd",
       "expected_output": "Schema with product_id using attribute + fast-search, text fields with index, brand with index + attribute + fast-search, price with attribute + fast-search, categories as array<string> with attribute + fast-search, in_stock bool with attribute + fast-search + rank:filter, rating with attribute, map with struct-field indexing.",
       "files": [],
-      "assertions": []
+      "assertions": [
+        {"type": "file_exists", "path": "*.sd", "text": "Schema .sd file exists"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "schema product", "text": "Schema named 'product'"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "document product", "text": "Document name matches"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field product_id type string", "text": "product_id is string type"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "fast-search", "text": "fast-search used for performance"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field brand type string", "text": "Brand field present"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "array<string>", "text": "Categories uses array<string>"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field in_stock type bool", "text": "in_stock is bool type"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "map<string,\\s*string>", "text": "Custom attributes uses map<string, string>"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "struct-field key", "text": "Map keys indexed via struct-field"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "rank: filter", "text": "rank:filter on boolean/filter fields"}
+      ],
+      "llm_rubric": "Evaluate this e-commerce schema: (1) Is product_id using attribute + fast-search for fast lookups? (2) Are text fields (name, description) using 'index' for full-text search? (3) Is brand using BOTH index and attribute (searchable AND filterable)? (4) Does in_stock use 'rank: filter' to skip scoring? (5) Are map struct-field keys indexed with 'match: exact'? (6) Is 'fast-search' applied to fields that need fast filtering (price, categories, in_stock, product_id)?"
     },
     {
       "id": 5,
       "name": "parent-child-reference",
-      "prompt": "I'm building a Vespa app with two document types: 'merchant' (parent) with fields name, city, and trust_score; and 'offer' (child) with fields title, price, and a reference to the merchant. The offer schema should import the merchant's name and trust_score so I can use them in ranking without joins at query time. Create both schemas.",
-      "expected_output": "Two .sd files: merchant schema with name/city/trust_score fields (attributes), and offer schema with reference<merchant> field, import field statements for merchant name and trust_score, and possibly a rank profile using the imported fields.",
+      "prompt": "I'm building a Vespa app with two document types: 'merchant' (parent) with fields name, city, and trust_score; and 'offer' (child) with fields title, price, and a reference to the merchant. The offer schema should import the merchant's name and trust_score so I can use them in ranking without joins at query time. Create both schemas. Write merchant to schemas/merchant.sd and offer to schemas/offer.sd",
+      "expected_output": "Two .sd files: merchant schema with name/city/trust_score fields (attributes), and offer schema with reference<merchant> field (attribute-only), import field statements for merchant name and trust_score, and possibly a rank profile using the imported fields.",
       "files": [],
-      "assertions": []
+      "assertions": [
+        {"type": "file_exists", "path": "**/merchant.sd", "text": "Merchant schema file exists"},
+        {"type": "file_exists", "path": "**/offer.sd", "text": "Offer schema file exists"},
+        {"type": "content_contains", "path": "**/merchant.sd", "pattern": "schema merchant", "text": "Merchant schema correctly named"},
+        {"type": "content_contains", "path": "**/merchant.sd", "pattern": "document merchant", "text": "Merchant document name matches"},
+        {"type": "content_contains", "path": "**/offer.sd", "pattern": "schema offer", "text": "Offer schema correctly named"},
+        {"type": "content_contains", "path": "**/offer.sd", "pattern": "reference<merchant>", "text": "Reference to merchant document type"},
+        {"type": "content_matches", "path": "**/offer.sd", "pattern": "import field.*\\.name", "text": "Imports merchant name field"},
+        {"type": "content_matches", "path": "**/offer.sd", "pattern": "import field.*\\.trust_score", "text": "Imports merchant trust_score field"},
+        {"type": "content_matches", "path": "**/merchant.sd", "pattern": "field name type string", "text": "Merchant has name field"},
+        {"type": "content_matches", "path": "**/merchant.sd", "pattern": "field trust_score type (double|float)", "text": "Merchant has trust_score numeric field"}
+      ],
+      "llm_rubric": "Evaluate these parent-child schemas: (1) Is the reference field in offer using attribute-only indexing (no index)? (2) Are import field statements correctly referencing through the reference field? (3) Are merchant fields that will be imported using 'attribute' indexing? (4) Does the offer schema have a rank profile that uses the imported fields? (5) Are schema and document names consistent within each file?"
     }
   ]
 }

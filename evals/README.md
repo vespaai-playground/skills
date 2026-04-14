@@ -130,6 +130,25 @@ and interferes with trigger evals, disable it for this workspace:
 }
 ```
 
+## Writing Good Trigger Eval Prompts
+
+Claude only consults skills for tasks it can't easily handle on its own.
+Simple questions (e.g. "how do I add BM25 ranking?") won't trigger skills
+because Claude answers from training data. Trigger eval prompts must be
+**substantive, multi-step tasks** where consulting the skill adds real value.
+
+**Won't trigger** (too simple):
+```
+how do I add BM25 ranking to my Vespa schema?
+```
+
+**Will trigger** (actionable task):
+```
+Create a vespa schema for a recipe search app — it needs fields for title,
+ingredients as an array, cooking_time integer, a 512-dim embedding for semantic
+search with HNSW, and a hybrid rank profile. Write it to schemas/recipe.sd
+```
+
 ## Adding Evals for Other Skills
 
 1. Add test cases to `evals.json` (or create a new one) with `skill_name` and `skill_path`

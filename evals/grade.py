@@ -9,17 +9,16 @@ Supports two grader types:
 
 Usage:
     # Grade all evals in an iteration
-    python evals/grade.py --iteration 1
+    uv run python evals/grade.py --iteration 1
 
     # Grade a specific eval
-    python evals/grade.py --iteration 1 --eval basic-text-search
+    uv run python evals/grade.py --iteration 1 --eval basic-text-search
 
     # Grade with LLM rubric (requires ANTHROPIC_API_KEY)
-    python evals/grade.py --iteration 1 --llm-rubric
+    uv run python evals/grade.py --iteration 1 --llm-rubric
 """
 
 import argparse
-import glob
 import json
 import re
 import sys
@@ -248,7 +247,7 @@ def main():
         print()
 
     print(f"Done. Grading saved to {iter_dir}/eval-*/{{with,without}}_skill/grading.json")
-    print(f"\nNext: python evals/aggregate.py --iteration {args.iteration}")
+    print(f"\nNext: uv run python evals/aggregate.py --iteration {args.iteration}")
 
 
 if __name__ == "__main__":

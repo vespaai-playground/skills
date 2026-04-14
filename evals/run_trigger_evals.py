@@ -31,7 +31,11 @@ import sys
 import time
 from pathlib import Path
 
-from config import CLAUDE_CLI, CLAUDE_MODEL, REPO_ROOT
+from config import REPO_ROOT
+
+# Trigger evals are Claude-only (requires stream-json event parsing)
+CLAUDE_CLI = os.environ.get("CLAUDE_CLI", "claude")
+CLAUDE_MODEL = os.environ.get("EVAL_MODEL", "")
 
 # Map skill names to the patterns that indicate invocation in the event stream.
 # Claude Code skills show up as Skill tool_use calls in the stream-json output.

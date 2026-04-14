@@ -4,7 +4,7 @@
 Aggregate grading and timing results into benchmark.json.
 
 Usage:
-    python evals/aggregate.py --iteration 1
+    uv run python evals/aggregate.py --iteration 1
 """
 
 import argparse

@@ -21,7 +21,7 @@ Measure whether Vespa skills improve Claude's output quality on realistic tasks.
 uv run python evals/run_evals.py
 
 # Quality evals: run a single eval
-uv run python evals/run_evals.py --eval basic-text-search
+uv run python evals/run_evals.py --eval gotcha-heavy-schema
 
 # Grade outputs (after reviewing and adding assertions to evals.json)
 uv run python evals/grade.py --iteration 1
@@ -60,7 +60,8 @@ Following the [skill-creator eval methodology](https://github.com/anthropics/ski
 evals/
 ├── evals.json              # Quality eval test cases (prompts + assertions)
 ├── trigger_evals.csv       # Trigger eval test cases (should/should-not trigger)
-├── config.py               # Settings (model, timeout, paths)
+├── config.py               # Path constants
+├── providers.py            # Provider abstraction (Claude CLI)
 ├── run_evals.py            # Quality eval runner
 ├── run_trigger_evals.py    # Trigger eval runner
 ├── grade.py                # Graders: deterministic + LLM rubric
@@ -69,7 +70,7 @@ evals/
 
 schema-authoring-workspace/     # Created by runners (gitignored)
 └── iteration-1/
-    ├── eval-basic-text-search/
+    ├── eval-gotcha-heavy-schema/
     │   ├── eval_metadata.json
     │   ├── with_skill/
     │   │   ├── outputs/        # Files Claude produced
@@ -102,15 +103,24 @@ Add assertions to `evals.json` after reviewing first outputs:
 | `content_contains` | `path`, `pattern` | File contains exact string |
 | `content_matches` | `path`, `pattern` | File matches regex |
 
+## Model Override
+
+```bash
+# Use default model
+uv run python evals/run_evals.py
+
+# Override model
+uv run python evals/run_evals.py --model claude-sonnet-4-20250514
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EVAL_MODEL` | (CLI default) | Claude model to use |
+| `EVAL_MODEL` | (CLI default) | Model to use |
 | `EVAL_TIMEOUT` | `120` | Timeout per run in seconds |
 | `EVAL_MAX_TURNS` | `20` | Max agent turns per run |
-| `EVAL_TRIALS` | `1` | Trials per task (for pass@k) |
-| `CLAUDE_CLI` | `claude` | Path to Claude CLI |
+| `CLAUDE_CLI` | `claude` | Path to Claude CLI binary |
 
 ## Plugin Setup
 

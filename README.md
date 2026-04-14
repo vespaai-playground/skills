@@ -120,4 +120,4 @@ Apache 2.0 — see [LICENSE](LICENSE).
 - [Vespa GitHub](https://github.com/vespa-engine/vespa)
 - [Sample Applications](https://github.com/vespa-engine/sample-apps)
 
-<!-- Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root. -->
+Copyright Vespa.ai. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.

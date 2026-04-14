@@ -482,6 +482,10 @@ schema child {
 }
 ```
 
+**11. `fast-access` on predicate, tensor, and reference attributes.** They are not supported.
+
+**12. `fast-search` on dense tensor fields.** `fast-search` only works for boolean, numeric, strings, and tensors with at least a mapped dimension.
+
 ## Agent Instructions
 
 When working with Vespa schemas:

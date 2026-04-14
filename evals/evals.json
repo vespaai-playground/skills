@@ -4,100 +4,97 @@
   "evals": [
     {
       "id": 1,
-      "name": "basic-text-search",
-      "prompt": "Create a Vespa schema for a 'article' document type with fields: title (string, searchable), body (string, searchable with BM25 support), author (string, filterable), published_date (long, sortable), and url (string, stored only). Include a default fieldset combining title and body, and a basic BM25 rank profile. Write the schema to schemas/article.sd",
-      "expected_output": "A valid .sd schema file with correct field types, appropriate indexing pipelines (index for text fields, attribute for filter/sort), enable-bm25 on fields used in bm25() ranking, a fieldset, and a rank profile using bm25().",
+      "name": "gotcha-heavy-schema",
+      "prompt": "Create a Vespa schema called 'listing' for a real estate search app. Write it to schemas/listing.sd. Requirements:\n- address_text (free-text searchable with BM25 support for relevance ranking)\n- city (filterable with exact string matching, must be fast)\n- price (numeric, filterable and sortable)\n- is_active (boolean, used purely as a filter that should not affect relevance scoring)\n- description (searchable text, should support BM25, but the full text is large so it should use a dynamic summary to show just a snippet in results)\n- embedding (384-dim float vector for semantic search with HNSW using prenormalized-angular distance)\n- raw_html (opaque binary blob, stored but never searchable)\n- tags (weighted set of strings with integer weights)\n- metadata (map from string keys to string values, keys must be filterable with exact match)\n- a default fieldset over address_text and description\n- a hybrid rank profile that uses BM25 on text fields in first-phase, then combines with closeness() in second-phase using normalize_linear",
+      "expected_output": "Schema with: enable-bm25 on address_text AND description, city as attribute with fast-search (NOT index+match:exact since that's a gotcha), is_active bool with attribute + fast-search + rank:filter, description with summary:dynamic, embedding tensor with prenormalized-angular distance-metric (NOT fast-search on dense tensor — that's a gotcha), raw_html as raw type with summary only, tags as weightedset<string>, metadata map with struct-field key having match:exact, hybrid rank profile with normalize_linear in second-phase.",
       "files": [],
       "assertions": [
         {"type": "file_exists", "path": "*.sd", "text": "Schema .sd file exists"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "schema article", "text": "Schema named 'article'"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "document article", "text": "Document name matches schema name"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 present on indexed fields"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "bm25(title)", "text": "Rank profile uses bm25(title)"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "bm25(body)", "text": "Rank profile uses bm25(body)"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "fieldset default", "text": "Default fieldset defined"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "field author type string", "text": "Author field is string type"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "attribute", "text": "Attribute indexing used for filter/sort fields"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "field url type string", "text": "URL field present"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "field published_date type long", "text": "published_date is long type"}
+        {"type": "content_contains", "path": "*.sd", "pattern": "schema listing", "text": "Schema named 'listing'"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "document listing", "text": "Document name matches schema name"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 present on BM25 fields"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "rank: filter", "text": "rank:filter on is_active boolean"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "summary: dynamic", "text": "Dynamic summary on description"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "prenormalized-angular", "text": "prenormalized-angular distance metric"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field raw_html type raw", "text": "raw_html uses raw type"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "weightedset<string>", "text": "tags uses weightedset<string>"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "struct-field key", "text": "Map keys indexed via struct-field"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "normalize_linear", "text": "normalize_linear in hybrid rank profile"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "second-phase", "text": "Second-phase reranking present"}
       ],
-      "llm_rubric": "Check this Vespa schema for best practices: (1) Do ALL fields used in bm25() ranking have 'index: enable-bm25'? This is critical. (2) Are filter fields (author) using 'attribute' indexing, not 'index'? (3) Does the url field use 'summary' only (stored, not searchable)? (4) Is published_date using 'attribute' for sortability? (5) Does the fieldset combine title and body?"
+      "llm_rubric": "Grade this Vespa schema for subtle best practices. These are the key differentiators:\n(1) Does is_active bool have 'rank: filter'? This is critical — booleans used purely as filters should not contribute to scoring.\n(2) Does description have 'summary: dynamic' for snippet generation?\n(3) Is the embedding field using prenormalized-angular (NOT angular)? Does it AVOID 'fast-search' on the dense tensor (gotcha #12 — fast-search only works on tensors with at least a mapped dimension)?\n(4) Is city using attribute + fast-search for exact matching (NOT index + match:exact which is gotcha #2)?\n(5) Is raw_html type 'raw' with 'indexing: summary' only?\n(6) Do ALL fields used in bm25() have 'index: enable-bm25' — including description, not just address_text?\n(7) Are the map struct-field keys using 'match: exact'?\n(8) Does the hybrid rank profile use normalize_linear to combine BM25 and closeness in a second-phase?"
     },
     {
       "id": 2,
-      "name": "hybrid-search-embeddings",
-      "prompt": "I need a Vespa schema called 'product' for hybrid search. It should have: a title and description for text search with BM25, a 768-dimensional float embedding field with HNSW indexing using angular distance, and a hybrid rank profile that combines BM25 text scores with vector closeness in a second phase. The rank profile should accept a query embedding tensor as input. Write the schema to schemas/product.sd",
-      "expected_output": "Schema with string fields having enable-bm25, a tensor<float>(x[768]) field with HNSW config, distance-metric angular, and a rank profile with query input tensor, first-phase text scoring, second-phase combining normalize_linear of text and vector scores.",
-      "files": [],
-      "assertions": [
-        {"type": "file_exists", "path": "*.sd", "text": "Schema .sd file exists"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "schema product", "text": "Schema named 'product'"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 on text fields"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "tensor<float>\\(x\\[768\\]\\)", "text": "768-dim float tensor field"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "hnsw", "text": "HNSW index configured"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "angular", "text": "Angular distance metric"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "second-phase", "text": "Second-phase reranking present"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "closeness(field, embedding)", "text": "Uses closeness() for vector scoring"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "normalize_linear", "text": "Uses normalize_linear for score combination"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "query\\(.*\\) tensor<float>\\(x\\[768\\]\\)", "text": "Query input tensor with matching dimensions"}
-      ],
-      "llm_rubric": "Evaluate this hybrid search schema: (1) Do text fields have both 'index' and 'enable-bm25'? (2) Is the tensor dimension consistent between the field and query input (both x[768])? (3) Does the rank profile properly combine BM25 and closeness scores with normalization in a second phase? (4) Are HNSW parameters reasonable (max-links-per-node 8-32, neighbors-to-explore 100-500)? (5) Is distance-metric explicitly set to angular?"
-    },
-    {
-      "id": 3,
-      "name": "fix-broken-schema",
-      "prompt": "This Vespa schema has several bugs. Find and fix ALL of them. Write the corrected schema to schemas/products.sd\n\nHere is the broken schema:\n\nschema products {\n    document product {\n        field title type string {\n            indexing: summary | index\n        }\n        field category type string {\n            indexing: attribute\n            match: exact\n        }\n        field embedding type tensor<float>(d[384]) {\n            indexing: summary | attribute\n            index {\n                hnsw {\n                    max-links-per-node: 16\n                }\n            }\n        }\n    }\n    rank-profile semantic {\n        inputs {\n            query(q) tensor<float>(x[384])\n        }\n        first-phase {\n            expression: closeness(field, embedding)\n        }\n    }\n    rank-profile text_search {\n        first-phase {\n            expression: bm25(title)\n        }\n    }\n}",
-      "expected_output": "Fixed schema file addressing: (1) schema/document name mismatch (products vs product), (2) match:exact on attribute-only field has no effect — needs index added, (3) tensor dimension name mismatch (d[384] vs x[384] in query), (4) missing distance-metric on embedding, (5) bm25(title) used without enable-bm25 on title field.",
+      "name": "fix-subtle-bugs",
+      "prompt": "This Vespa schema has multiple subtle bugs that will cause runtime issues. Find and fix ALL of them. Write the corrected schema to schemas/catalog.sd\n\nschema catalog {\n    document catalog {\n        field title type string {\n            indexing: summary | index\n        }\n        field sku type string {\n            indexing: attribute\n            match: exact\n        }\n        field status type bool {\n            indexing: summary | attribute\n            attribute: fast-access\n        }\n        field embedding type tensor<float>(x[256]) {\n            indexing: summary | attribute\n            attribute {\n                distance-metric: angular\n                fast-search\n            }\n            index {\n                hnsw {\n                    max-links-per-node: 16\n                }\n            }\n        }\n        field content type string {\n            indexing: summary | attribute\n            attribute: paged\n        }\n        field labels type weightedset<float> {\n            indexing: summary | attribute\n        }\n    }\n    fieldset default {\n        fields: title, content\n    }\n    rank-profile search {\n        first-phase {\n            expression: bm25(title) + bm25(content)\n        }\n    }\n}",
+      "expected_output": "Fixed schema addressing: (1) match:exact on attribute-only sku — needs index or use fast-search approach, (2) fast-access on bool is questionable but not invalid — however fast-search is more appropriate, (3) fast-search on dense tensor — not supported (gotcha #12), (4) content field has attribute:paged but bm25(content) requires index — field needs indexing:index, (5) weightedset<float> is invalid — must be string/int/long (gotcha #9), (6) bm25(title) without enable-bm25, (7) fieldset includes content but content is attribute-only — fieldset fields should be indexed.",
       "files": [],
       "assertions": [
         {"type": "file_exists", "path": "*.sd", "text": "Fixed schema written to .sd file"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "schema (\\w+)\\s*\\{[\\s\\S]*document \\1", "text": "Schema and document names match"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 added to title field"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "distance-metric", "text": "Distance metric specified on embedding"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "tensor<float>\\((x|d)\\[384\\]\\)[\\s\\S]*query\\(q\\) tensor<float>\\(\\1\\[384\\]\\)", "text": "Tensor dimensions consistent between field and query"}
+        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 added to fields used in bm25()"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "weightedset<(string|int|long)>", "text": "weightedset uses valid element type (not float)"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field content type string[\\s\\S]*?indexing:[^}]*index", "text": "content field has index in indexing pipeline"}
       ],
-      "llm_rubric": "The original schema had these bugs: (1) schema name 'products' vs document name 'product' — must match, (2) 'match: exact' on attribute-only category field has no effect, (3) tensor dimension d[384] vs x[384] mismatch between field and query, (4) missing distance-metric on embedding, (5) bm25(title) without enable-bm25. Grade how many bugs were correctly identified and fixed. Also check the fix didn't introduce new bugs (e.g., adding 'index' to the tensor indexing pipeline is incorrect — tensors use HNSW, not inverted index)."
+      "llm_rubric": "This schema has 6+ subtle bugs. Grade how many were found:\n(1) match:exact on attribute-only sku field has no effect (gotcha #2) — needs index added, or switch to fast-search approach\n(2) fast-search on a dense tensor (embedding) is not supported (gotcha #12) — only works on tensors with at least one mapped dimension\n(3) weightedset<float> is invalid (gotcha #9) — element type must be string, int, or long\n(4) bm25(title) and bm25(content) used without enable-bm25 on either field (gotcha #1)\n(5) content field is attribute-only but used in bm25() and fieldset — needs index in its indexing pipeline\n(6) fieldset 'default' includes content which is attribute-only — all fieldset members should be indexed strings\nAlso check: did the fix introduce NEW bugs (e.g., adding fast-access to tensor which is also not supported — gotcha #11)?"
     },
     {
-      "id": 4,
-      "name": "ecommerce-filtering",
-      "prompt": "Create a Vespa schema for an e-commerce product catalog. I need: product_id (unique identifier, fast lookup), name and description (full-text searchable), brand (filterable and searchable), price (numeric, filterable and sortable), categories as an array of strings (filterable), in_stock boolean (fast filter), rating (float), and a map of custom attributes (string to string, with filterable keys). Use appropriate attribute modifiers for performance. Write the schema to schemas/product.sd",
-      "expected_output": "Schema with product_id using attribute + fast-search, text fields with index, brand with index + attribute + fast-search, price with attribute + fast-search, categories as array<string> with attribute + fast-search, in_stock bool with attribute + fast-search + rank:filter, rating with attribute, map with struct-field indexing.",
+      "id": 3,
+      "name": "large-scale-schema-design",
+      "prompt": "I'm designing a Vespa schema for a job search platform with 200M documents. Write it to schemas/job.sd. Requirements:\n- job_title and job_description (full-text searchable with BM25 ranking)\n- company_name (both searchable via text AND filterable as exact match)\n- location_city and location_country (filterable, exact match, high-cardinality ~50K cities)\n- salary_min and salary_max (numeric range filters)\n- posted_date (long timestamp, sortable, used for freshness ranking)\n- is_remote (boolean filter, should not affect scoring)\n- required_skills (array of strings, filterable)\n- seniority_level (string enum: junior/mid/senior/lead, filterable)\n- embedding (768-dim float, pre-normalized vectors, for semantic search)\n- company_description (large text, stored for display but NOT searchable — too expensive to index at this scale)\n\nDesign the schema with memory efficiency in mind — 200M docs means we need to be careful about what goes in memory. Include a rank profile that combines BM25 + freshness + semantic in a phased approach.",
+      "expected_output": "Schema optimized for scale: company_description with summary only (not indexed), attribute:paged on large rarely-filtered attributes, fast-search on high-frequency filter fields, rank:filter on is_remote, prenormalized-angular on embedding, enable-bm25 on searchable text, proper phased ranking with freshness(posted_date) in expressions.",
       "files": [],
       "assertions": [
         {"type": "file_exists", "path": "*.sd", "text": "Schema .sd file exists"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "schema product", "text": "Schema named 'product'"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "document product", "text": "Document name matches"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "field product_id type string", "text": "product_id is string type"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "fast-search", "text": "fast-search used for performance"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "field brand type string", "text": "Brand field present"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "array<string>", "text": "Categories uses array<string>"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "field in_stock type bool", "text": "in_stock is bool type"},
-        {"type": "content_matches", "path": "*.sd", "pattern": "map<string,\\s*string>", "text": "Custom attributes uses map<string, string>"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "struct-field key", "text": "Map keys indexed via struct-field"},
-        {"type": "content_contains", "path": "*.sd", "pattern": "rank: filter", "text": "rank:filter on boolean/filter fields"}
+        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 on text search fields"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "rank: filter", "text": "rank:filter on is_remote"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "prenormalized-angular", "text": "prenormalized-angular for pre-normalized vectors"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "second-phase", "text": "Phased ranking present"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "paged", "text": "attribute:paged for memory efficiency"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "fast-search", "text": "fast-search on filter fields"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "freshness", "text": "freshness() used in ranking"}
       ],
-      "llm_rubric": "Evaluate this e-commerce schema: (1) Is product_id using attribute + fast-search for fast lookups? (2) Are text fields (name, description) using 'index' for full-text search? (3) Is brand using BOTH index and attribute (searchable AND filterable)? (4) Does in_stock use 'rank: filter' to skip scoring? (5) Are map struct-field keys indexed with 'match: exact'? (6) Is 'fast-search' applied to fields that need fast filtering (price, categories, in_stock, product_id)?"
+      "llm_rubric": "Evaluate this schema for a 200M document deployment:\n(1) Is company_description stored with 'indexing: summary' only (not indexed, too expensive at scale)?\n(2) Is 'attribute: paged' used on large or rarely-accessed attribute fields to reduce memory pressure (gotcha #5)?\n(3) Is is_remote bool using 'rank: filter' to avoid scoring overhead?\n(4) Is the embedding using prenormalized-angular (not angular) since vectors are pre-normalized? Does it AVOID fast-search on the dense tensor?\n(5) Does company_name have BOTH index (for text search) and attribute + fast-search (for exact filter)? This dual-mode is the correct pattern.\n(6) Are high-cardinality filter fields (location_city, location_country) using attribute + fast-search?\n(7) Does the rank profile use freshness(posted_date) and does posted_date have attribute indexing?\n(8) Is seniority_level using attribute + fast-search with match:word or match:exact (not index — it's an enum)?"
+    },
+    {
+      "id": 4,
+      "name": "parent-child-with-ranking",
+      "prompt": "Create a parent-child schema setup for a multi-tenant SaaS search platform. Write to schemas/tenant.sd and schemas/document.sd\n\nParent 'tenant':\n- tenant_id (string, unique identifier)\n- plan_tier (string enum: free/pro/enterprise)\n- boost_factor (double, used to boost search results for paid tenants)\n\nChild 'document':\n- title (string, full-text searchable with BM25)\n- body (string, full-text searchable with BM25)\n- created_at (long timestamp)\n- access_level (string, filterable exact match)\n- embedding (512-dim float vector, HNSW with dotproduct distance)\n\nThe child should import tenant's boost_factor and plan_tier. Create a rank profile that:\n1. First-phase: BM25 on title weighted 3x + body\n2. Second-phase: combines text score with semantic score, multiplied by the imported boost_factor",
+      "expected_output": "Two schemas: tenant with all fields as attributes (parent fields must be attributes for import), document with reference<tenant> as attribute-only (no index — gotcha #10), import field statements outside document block, rank profile using imported boost_factor, enable-bm25 on title and body, dotproduct distance-metric on embedding.",
+      "files": [],
+      "assertions": [
+        {"type": "file_exists", "path": "**/tenant.sd", "text": "Tenant schema file exists"},
+        {"type": "file_exists", "path": "**/document.sd", "text": "Document schema file exists"},
+        {"type": "content_contains", "path": "**/document.sd", "pattern": "reference<tenant>", "text": "Reference to tenant"},
+        {"type": "content_matches", "path": "**/document.sd", "pattern": "import field.*\\.boost_factor", "text": "Imports boost_factor"},
+        {"type": "content_matches", "path": "**/document.sd", "pattern": "import field.*\\.plan_tier", "text": "Imports plan_tier"},
+        {"type": "content_contains", "path": "**/document.sd", "pattern": "enable-bm25", "text": "enable-bm25 on text fields"},
+        {"type": "content_contains", "path": "**/document.sd", "pattern": "dotproduct", "text": "dotproduct distance metric"},
+        {"type": "content_contains", "path": "**/document.sd", "pattern": "second-phase", "text": "Second-phase reranking"},
+        {"type": "content_contains", "path": "**/tenant.sd", "pattern": "attribute", "text": "Tenant fields use attribute (required for import)"}
+      ],
+      "llm_rubric": "Grade these parent-child schemas for correctness:\n(1) Is the reference field in document using attribute-ONLY indexing (no index — gotcha #10)?\n(2) Are import field statements placed OUTSIDE the document block (common structural mistake)?\n(3) Do ALL tenant fields that will be imported use 'attribute' indexing (required for import to work)?\n(4) Does the rank profile multiply by the imported boost_factor (attribute(boost_factor) or attribute(tenant_boost_factor))?\n(5) Is dotproduct the distance-metric on the embedding (not angular — dotproduct is correct for max inner product search)?\n(6) Do title and body both have 'index: enable-bm25'?\n(7) Does the first-phase weight title 3x: bm25(title) * 3 + bm25(body)?\n(8) Does the second-phase use normalize_linear to combine text and semantic scores before multiplying by boost_factor?"
     },
     {
       "id": 5,
-      "name": "parent-child-reference",
-      "prompt": "I'm building a Vespa app with two document types: 'merchant' (parent) with fields name, city, and trust_score; and 'offer' (child) with fields title, price, and a reference to the merchant. The offer schema should import the merchant's name and trust_score so I can use them in ranking without joins at query time. Create both schemas. Write merchant to schemas/merchant.sd and offer to schemas/offer.sd",
-      "expected_output": "Two .sd files: merchant schema with name/city/trust_score fields (attributes), and offer schema with reference<merchant> field (attribute-only), import field statements for merchant name and trust_score, and possibly a rank profile using the imported fields.",
+      "name": "complex-field-types",
+      "prompt": "Create a Vespa schema called 'event' for a conference/event search platform. Write to schemas/event.sd. Requirements:\n- event_name (searchable text with BM25)\n- organizer (string, both searchable and filterable)\n- venue type should be a struct with fields: name (string), city (string), country (string), capacity (int). The city and country should be filterable with exact match.\n- start_date and end_date (long timestamps, sortable, filterable with range queries)\n- ticket_prices (a map from string ticket-type names to double prices, the ticket-type keys must be filterable)\n- speakers (array of strings, filterable)\n- topic_tags (weighted set of strings with relevance weights)\n- geo_location (position type for geographic search)\n- event_description (large text, searchable with BM25 but use dynamic summary for snippets)\n- flyer_image (binary blob, stored for retrieval only)\n\nInclude a rank profile that combines BM25 text relevance with geo-distance proximity and freshness.",
+      "expected_output": "Schema with: struct for venue with struct-field indexing on city/country with match:exact, map with struct-field key indexing, weightedset<string> for topic_tags, position type for geo_location with attribute, raw type for flyer_image with summary-only indexing, enable-bm25 on searchable fields, dynamic summary on event_description, rank profile using distance() for geo and freshness() for dates.",
       "files": [],
       "assertions": [
-        {"type": "file_exists", "path": "**/merchant.sd", "text": "Merchant schema file exists"},
-        {"type": "file_exists", "path": "**/offer.sd", "text": "Offer schema file exists"},
-        {"type": "content_contains", "path": "**/merchant.sd", "pattern": "schema merchant", "text": "Merchant schema correctly named"},
-        {"type": "content_contains", "path": "**/merchant.sd", "pattern": "document merchant", "text": "Merchant document name matches"},
-        {"type": "content_contains", "path": "**/offer.sd", "pattern": "schema offer", "text": "Offer schema correctly named"},
-        {"type": "content_contains", "path": "**/offer.sd", "pattern": "reference<merchant>", "text": "Reference to merchant document type"},
-        {"type": "content_matches", "path": "**/offer.sd", "pattern": "import field.*\\.name", "text": "Imports merchant name field"},
-        {"type": "content_matches", "path": "**/offer.sd", "pattern": "import field.*\\.trust_score", "text": "Imports merchant trust_score field"},
-        {"type": "content_matches", "path": "**/merchant.sd", "pattern": "field name type string", "text": "Merchant has name field"},
-        {"type": "content_matches", "path": "**/merchant.sd", "pattern": "field trust_score type (double|float)", "text": "Merchant has trust_score numeric field"}
+        {"type": "file_exists", "path": "*.sd", "text": "Schema .sd file exists"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "schema event", "text": "Schema named 'event'"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "struct venue", "text": "Venue defined as struct"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "struct-field city", "text": "Venue city indexed via struct-field"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "struct-field country", "text": "Venue country indexed via struct-field"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "weightedset<string>", "text": "topic_tags uses weightedset<string>"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field geo_location type position", "text": "geo_location uses position type"},
+        {"type": "content_matches", "path": "*.sd", "pattern": "field flyer_image type raw", "text": "flyer_image uses raw type"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "summary: dynamic", "text": "Dynamic summary on event_description"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "enable-bm25", "text": "enable-bm25 on text search fields"},
+        {"type": "content_contains", "path": "*.sd", "pattern": "struct-field key", "text": "Map ticket-type keys indexed via struct-field"}
       ],
-      "llm_rubric": "Evaluate these parent-child schemas: (1) Is the reference field in offer using attribute-only indexing (no index)? (2) Are import field statements correctly referencing through the reference field? (3) Are merchant fields that will be imported using 'attribute' indexing? (4) Does the offer schema have a rank profile that uses the imported fields? (5) Are schema and document names consistent within each file?"
+      "llm_rubric": "Grade this schema for correct use of complex Vespa field types:\n(1) Is venue defined as a struct inside the document block, with struct-field declarations for city and country using 'match: exact'?\n(2) Is ticket_prices a map<string, double> with struct-field key having attribute + match:exact?\n(3) Is topic_tags weightedset<string> (not weightedset<float> or array — gotcha #9)?\n(4) Is geo_location type 'position' with 'indexing: attribute | summary' (position cannot use index)?\n(5) Is flyer_image type 'raw' with 'indexing: summary' only (raw is not searchable — gotcha #8)?\n(6) Does event_description have 'summary: dynamic' for snippet generation?\n(7) Do ALL fields used in bm25() have 'index: enable-bm25'?\n(8) Does the rank profile use distance(field, geo_location) or closeness(field, geo_location) for geographic ranking?\n(9) Are struct-field declarations on the venue field (not inside the struct definition)?"
     }
   ]
 }

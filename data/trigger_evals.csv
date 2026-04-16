@@ -1,0 +1,23 @@
+id,skill,should_trigger,category,prompt
+# schema-authoring: SHOULD trigger (substantive tasks, not simple Q&A)
+sa-01,schema-authoring,true,explicit,"Use the schema-authoring skill to create a Vespa schema for my blog posts"
+sa-02,schema-authoring,true,implicit,"I need to write a .sd file for a Vespa document type called 'ticket' with a title, description, priority enum, and an embedding field for semantic search"
+sa-03,schema-authoring,true,implicit,"Create a vespa schema for a recipe search app — it needs fields for title, ingredients as an array, cooking_time integer, a 512-dim embedding for semantic search with HNSW, and a hybrid rank profile. Write it to schemas/recipe.sd"
+sa-04,schema-authoring,true,contextual,"we're migrating our product catalog from Elasticsearch to Vespa. I need to recreate our product schema with fields for title, brand, price, categories array, and a 384-dim vector. can you help with the .sd file?"
+sa-05,schema-authoring,true,contextual,"I have a vespa schema with tensor<float>(d[128]) but nearestNeighbor returns nothing. The query tensor uses x[128]. Can you fix my schema file at schemas/doc.sd and make sure all the tensor dimensions are consistent?"
+sa-06,schema-authoring,true,implicit,"create a parent-child schema setup in vespa — merchant as parent with name and trust_score, and offer as child that imports the merchant fields for ranking"
+sa-07,schema-authoring,true,implicit,"I want to add a weightedset<string> tags field and a struct for addresses to my existing vespa schema, plus set up struct-field indexing so I can filter by city. Write the updated schema."
+sa-08,schema-authoring,true,contextual,"our vespa app is slow on category filters — the field is a string attribute without fast-search and we have 100M docs. Can you rewrite the schema at schemas/product.sd with proper attribute modifiers for all the filterable fields?"
+sa-09,schema-authoring,true,implicit,"write a vespa schema for a news article search system with 50M documents — needs title and body with BM25, a 768-dim embedding with HNSW tuned for that scale, publication_date for freshness ranking, and a rank profile combining all three signals"
+sa-10,schema-authoring,true,implicit,"write a complete vespa schema with a rank-profile that does hybrid search combining bm25 text scores with vector closeness using normalize_linear in a second phase, including query inputs and match-features for debugging"
+# schema-authoring: should NOT trigger (near-misses)
+sa-11,schema-authoring,false,negative,"deploy my vespa application package to a local docker container"
+sa-12,schema-authoring,false,negative,"write a YQL query to search for products where brand matches 'Nike' and price is less than 100, sorted by rating"
+sa-13,schema-authoring,false,negative,"how do I feed 10000 JSON documents into my vespa app using the document API?"
+sa-14,schema-authoring,false,negative,"set up services.xml for a vespa application with 2 content nodes and a container cluster with custom query profiles"
+sa-15,schema-authoring,false,negative,"use pyvespa to connect to my running vespa instance and run a nearest neighbor query"
+sa-16,schema-authoring,false,negative,"help me write a vespa CLI command to check the status of my deployment and download logs"
+sa-17,schema-authoring,false,negative,"I need to create a postgres schema for my users table with email, name, created_at and an index on email"
+sa-18,schema-authoring,false,negative,"can you write a JSON feed file with 5 sample product documents matching my vespa schema?"
+sa-19,schema-authoring,false,negative,"how do I configure an embedder in services.xml so vespa auto-generates embeddings at feed time?"
+sa-20,schema-authoring,false,negative,"help me debug why my vespa container is returning 503 — I think it's a capacity issue"

@@ -24,5 +24,8 @@ env/
 # Claude Code local state
 .claude/
 
+# Eval workspaces (generated outputs)
+*-workspace/
+
 # Node (in case of tooling)
 node_modules/

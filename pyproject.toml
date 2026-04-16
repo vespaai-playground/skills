@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vespaskills"
+version = "0.1.0"
+description = "Vespa AI skills for LLMs and skills evaluation framework"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+readme = "README.md"
+dependencies = ["rich>=13.0.0"]
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.40.0"]
+
+[project.scripts]
+vespaskills = "vespaskills.cli:main"
+
+[dependency-groups]
+dev = ["ruff"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vespaskills"]
+
+[tool.ruff]
+line-length = 119
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E203"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["vespaskills"]

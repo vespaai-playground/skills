@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
 """Generate platform-specific manifests from SKILL.md files.
 
 Usage:
-    python generate.py          # Generate all artifacts
-    python generate.py --check  # Validate artifacts are up-to-date (CI mode, exits 1 if drift)
+    vespaskills generate          # Generate all artifacts
+    vespaskills generate --check  # Validate artifacts are up-to-date (CI mode)
 """
 
 import glob
@@ -12,13 +11,14 @@ import os
 import re
 import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+from vespaskills.logger import get_logger
+
+logger = get_logger()
+
+ROOT = os.getcwd()
 
 EXCLUDE_DIRS = {"node_modules", ".git", ".claude", ".claude-plugin", ".cursor-plugin"}
 
-# ---------------------------------------------------------------------------
-# YAML frontmatter parser (minimal, no dependencies)
-# ---------------------------------------------------------------------------
 
 def parse_frontmatter(path: str) -> dict:
     """Parse YAML frontmatter from a SKILL.md file. Handles simple key: value pairs."""
@@ -35,7 +35,7 @@ def parse_frontmatter(path: str) -> dict:
         key, _, value = line.partition(":")
         value = value.strip().strip('"').strip("'")
         meta[key.strip()] = value
-    meta["_body"] = text[end + 3:].strip()
+    meta["_body"] = text[end + 3 :].strip()
     meta["_path"] = path
     return meta
 
@@ -52,10 +52,6 @@ def discover_skills() -> list[dict]:
         skills.append(meta)
     return skills
 
-
-# ---------------------------------------------------------------------------
-# AGENTS.md generation
-# ---------------------------------------------------------------------------
 
 AGENTS_TEMPLATE = """\
 # Vespa Skills — Agent Instructions
@@ -91,9 +87,7 @@ def generate_agents_md(skills: list[dict]) -> str:
         docs_dir = os.path.join(ROOT, s["_dir"], "docs")
         doc_files = []
         if os.path.isdir(docs_dir):
-            doc_files = sorted(
-                f"docs/{f}" for f in os.listdir(docs_dir) if f.endswith(".md")
-            )
+            doc_files = sorted(f"docs/{f}" for f in os.listdir(docs_dir) if f.endswith(".md"))
         docs_line = ""
         if doc_files:
             items = ", ".join(f"`{d}`" for d in doc_files)
@@ -106,10 +100,6 @@ def generate_agents_md(skills: list[dict]) -> str:
         )
     return AGENTS_TEMPLATE.format(skill_sections="\n\n".join(sections))
 
-
-# ---------------------------------------------------------------------------
-# Marketplace validation
-# ---------------------------------------------------------------------------
 
 def validate_marketplace(skills: list[dict]) -> list[str]:
     marketplace_path = os.path.join(ROOT, ".claude-plugin", "marketplace.json")
@@ -129,10 +119,6 @@ def validate_marketplace(skills: list[dict]) -> list[str]:
         errors.append(f"Marketplace entry '{name}' has no matching SKILL.md")
     return errors
 
-
-# ---------------------------------------------------------------------------
-# README skills table
-# ---------------------------------------------------------------------------
 
 BEGIN_MARKER = "<!-- SKILLS:BEGIN -->"
 END_MARKER = "<!-- SKILLS:END -->"
@@ -169,84 +155,75 @@ def update_readme(skills: list[dict]) -> str | None:
     return pattern.sub(table, content)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def write_if_changed(path: str, content: str) -> bool:
-    """Write content to path if it differs from current contents. Returns True if changed."""
+    """Write content to path if it differs from current contents."""
     rel = os.path.relpath(path, ROOT)
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             if f.read() == content:
-                print(f"  {rel} (unchanged)")
+                logger.info(f"  {rel} (unchanged)")
                 return False
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print(f"  {rel} (updated)")
+    logger.success(f"  {rel} (updated)")
     return True
 
 
-def main():
-    check_mode = "--check" in sys.argv
+def run(args):
+    """Run generate command with parsed args."""
+    check_mode = args.check
 
     skills = discover_skills()
     if not skills:
-        print("ERROR: No skills found (no */SKILL.md files)")
+        logger.error("No skills found (no */SKILL.md files)")
         sys.exit(1)
 
-    print(f"Found {len(skills)} skill(s): {', '.join(s.get('name', s['_dir']) for s in skills)}\n")
+    logger.info(f"Found {len(skills)} skill(s): {', '.join(s.get('name', s['_dir']) for s in skills)}")
 
-    # Validate marketplace
     errors = validate_marketplace(skills)
     if errors:
         for e in errors:
-            print(f"ERROR: {e}")
+            logger.error(e)
         sys.exit(1)
 
-    # Generate artifacts
     agents_md = generate_agents_md(skills)
     readme_content = update_readme(skills)
 
     if check_mode:
-        print("Running in --check mode (validating, not writing)...\n")
+        logger.info("Running in --check mode (validating, not writing)...")
         drift = False
 
         agents_path = os.path.join(ROOT, "AGENTS.md")
         rel = os.path.relpath(agents_path, ROOT)
         if not os.path.exists(agents_path):
-            print(f"  DRIFT: {rel} does not exist")
+            logger.warning(f"  DRIFT: {rel} does not exist")
             drift = True
         else:
             with open(agents_path, encoding="utf-8") as f:
                 if f.read() != agents_md:
-                    print(f"  DRIFT: {rel} is out of date")
+                    logger.warning(f"  DRIFT: {rel} is out of date")
                     drift = True
                 else:
-                    print(f"  OK: {rel}")
+                    logger.success(f"  OK: {rel}")
 
         if readme_content is not None:
             readme_path = os.path.join(ROOT, "README.md")
             with open(readme_path, encoding="utf-8") as f:
                 if f.read() != readme_content:
-                    print("  DRIFT: README.md skills table is out of date")
+                    logger.warning("  DRIFT: README.md skills table is out of date")
                     drift = True
                 else:
-                    print("  OK: README.md")
+                    logger.success("  OK: README.md")
 
         if drift:
-            print("\nDrift detected. Run 'python generate.py' to fix.")
+            logger.error("Drift detected. Run 'vespaskills generate' to fix.")
             sys.exit(1)
         else:
-            print("\nAll artifacts are up to date.")
+            logger.success("All artifacts are up to date.")
             sys.exit(0)
     else:
-        print("Generating artifacts...\n")
+        logger.info("Generating artifacts...")
         write_if_changed(os.path.join(ROOT, "AGENTS.md"), agents_md)
         if readme_content is not None:
             write_if_changed(os.path.join(ROOT, "README.md"), readme_content)
-        print("\nDone.")
-
-
-if __name__ == "__main__":
-    main()
+        logger.success("Done.")

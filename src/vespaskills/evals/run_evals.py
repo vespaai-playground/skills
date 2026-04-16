@@ -78,6 +78,22 @@ def run_single_eval(
         skill_content=skill_content,
     )
 
+    # Collect any files that leaked to common paths outside outputs_dir
+    # (Claude sometimes resolves relative paths like "schemas/foo.sd" against repo root)
+    for leaked_dir in ("schemas",):
+        leaked_path = REPO_ROOT / leaked_dir
+        if leaked_path.exists() and leaked_path.is_dir():
+            dest = outputs_dir / leaked_dir
+            dest.mkdir(parents=True, exist_ok=True)
+            for f in leaked_path.rglob("*"):
+                if f.is_file():
+                    target = dest / f.relative_to(leaked_path)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(f), str(target))
+                    logger.debug(f"    Recovered leaked file: {leaked_dir}/{f.relative_to(leaked_path)}")
+            # Clean up the empty leaked directory
+            shutil.rmtree(leaked_path, ignore_errors=True)
+
     # Save timing
     usage = provider.extract_usage(result.stdout)
     timing = {

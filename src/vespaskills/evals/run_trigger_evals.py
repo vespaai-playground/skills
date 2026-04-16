@@ -244,7 +244,7 @@ def run(args):
             by_category[cat]["passed"] += 1
 
     for cat, stats in by_category.items():
-        logger.info(f"  {cat}: {stats['passed']}/{stats['total']}" f" ({stats['passed'] / stats['total']:.0%})")
+        logger.info(f"  {cat}: {stats['passed']}/{stats['total']} ({stats['passed'] / stats['total']:.0%})")
 
     workspace = REPO_ROOT / f"{cases[0]['skill']}-workspace"
     workspace.mkdir(parents=True, exist_ok=True)

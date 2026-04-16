@@ -219,7 +219,7 @@ def grade_eval(eval_dir: Path, eval_def: dict, use_llm: bool = False) -> dict:
             json.dump(grading, f, indent=2)
 
         results[run_type] = grading
-        logger.info(f"    [{run_type}] {passed}/{total} passed" f" ({grading['summary']['pass_rate']:.0%})")
+        logger.info(f"    [{run_type}] {passed}/{total} passed ({grading['summary']['pass_rate']:.0%})")
 
     return results
 

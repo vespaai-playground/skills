@@ -1,12 +1,12 @@
 .PHONY: quality style test
 
 quality:
-	ruff check .
-	ruff format --check .
+	uvx ruff check .
+	uvx ruff format --check .
 
 style:
-	ruff check --fix .
-	ruff format .
+	uvx ruff check --fix .
+	uvx ruff format .
 
 test:
-	pytest -sv ./src/
+	uv run pytest -sv ./src/

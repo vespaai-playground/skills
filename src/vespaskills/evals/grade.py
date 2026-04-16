@@ -1,30 +1,24 @@
-#!/usr/bin/env python3
-# ruff: noqa: T201
-"""
-Grade eval outputs against assertions.
+"""Grade eval outputs against assertions.
 
 Supports two grader types:
 - Deterministic: file_exists, content_contains, content_matches (regex)
 - LLM rubric: sends outputs to Claude for structured evaluation
 
 Usage:
-    # Grade all evals in an iteration
-    uv run python evals/grade.py --iteration 1
-
-    # Grade a specific eval
-    uv run python evals/grade.py --iteration 1 --eval basic-text-search
-
-    # Grade with LLM rubric (requires ANTHROPIC_API_KEY)
-    uv run python evals/grade.py --iteration 1 --llm-rubric
+    vespaskills grade --iteration 1
+    vespaskills grade --iteration 1 --eval basic-text-search
+    vespaskills grade --iteration 1 --llm-rubric
 """
 
-import argparse
 import json
 import re
 import sys
 from pathlib import Path
 
-from config import EVALS_JSON, REPO_ROOT
+from vespaskills.evals.config import REPO_ROOT
+from vespaskills.logger import get_logger
+
+logger = get_logger()
 
 
 def load_evals(evals_path: Path) -> dict:
@@ -35,7 +29,7 @@ def load_evals(evals_path: Path) -> dict:
 def find_workspace(skill_name: str, iteration: int) -> Path:
     ws = REPO_ROOT / f"{skill_name}-workspace" / f"iteration-{iteration}"
     if not ws.exists():
-        print(f"Error: workspace not found: {ws}")
+        logger.error(f"Workspace not found: {ws}")
         sys.exit(1)
     return ws
 
@@ -56,7 +50,6 @@ def check_content_contains(outputs_dir: Path, pattern: str, path_glob: str) -> t
     for f in files:
         content = f.read_text(errors="replace")
         if pattern in content:
-            # Find the line containing the match for evidence
             for line in content.splitlines():
                 if pattern in line:
                     return True, f"Found in {f.name}: {line.strip()[:120]}"
@@ -87,13 +80,9 @@ def run_deterministic_assertions(outputs_dir: Path, assertions: list[dict]) -> l
         if a_type == "file_exists":
             passed, evidence = check_file_exists(outputs_dir, assertion["path"])
         elif a_type == "content_contains":
-            passed, evidence = check_content_contains(
-                outputs_dir, assertion["pattern"], assertion.get("path", "*")
-            )
+            passed, evidence = check_content_contains(outputs_dir, assertion["pattern"], assertion.get("path", "*"))
         elif a_type == "content_matches":
-            passed, evidence = check_content_matches(
-                outputs_dir, assertion["pattern"], assertion.get("path", "*")
-            )
+            passed, evidence = check_content_matches(outputs_dir, assertion["pattern"], assertion.get("path", "*"))
         else:
             passed, evidence = False, f"Unknown assertion type: {a_type}"
 
@@ -106,12 +95,28 @@ def run_llm_rubric(outputs_dir: Path, rubric: str, expected_output: str) -> list
     try:
         import anthropic
     except ImportError:
-        return [{"text": "LLM rubric", "passed": False, "evidence": "anthropic SDK not installed (pip install anthropic)"}]
+        return [
+            {
+                "text": "LLM rubric",
+                "passed": False,
+                "evidence": "anthropic SDK not installed (pip install 'vespaskills[llm]')",
+            }
+        ]
 
-    # Collect all output file contents
     file_contents = []
     for f in sorted(outputs_dir.rglob("*")):
-        if f.is_file() and f.suffix in (".sd", ".xml", ".py", ".java", ".json", ".yaml", ".yml", ".txt", ".md", ".cfg"):
+        if f.is_file() and f.suffix in (
+            ".sd",
+            ".xml",
+            ".py",
+            ".java",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".txt",
+            ".md",
+            ".cfg",
+        ):
             content = f.read_text(errors="replace")
             file_contents.append(f"--- {f.relative_to(outputs_dir)} ---\n{content}")
 
@@ -141,7 +146,8 @@ Respond with a JSON array where each element has:
 - "passed": true or false
 - "evidence": specific quote or observation from the output supporting your judgment
 
-Be strict: require concrete evidence for a PASS. If something is ambiguous or partially done, mark it as FAIL with explanation.
+Be strict: require concrete evidence for a PASS.
+If something is ambiguous or partially done, mark it as FAIL with explanation.
 
 Respond ONLY with the JSON array, no other text."""
 
@@ -154,12 +160,17 @@ Respond ONLY with the JSON array, no other text."""
 
     try:
         text = response.content[0].text.strip()
-        # Handle potential markdown code blocks
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         return json.loads(text)
     except (json.JSONDecodeError, IndexError) as e:
-        return [{"text": "LLM rubric parsing", "passed": False, "evidence": f"Failed to parse LLM response: {e}"}]
+        return [
+            {
+                "text": "LLM rubric parsing",
+                "passed": False,
+                "evidence": f"Failed to parse LLM response: {e}",
+            }
+        ]
 
 
 def grade_eval(eval_dir: Path, eval_def: dict, use_llm: bool = False) -> dict:
@@ -173,12 +184,10 @@ def grade_eval(eval_dir: Path, eval_def: dict, use_llm: bool = False) -> dict:
 
         assertion_results = []
 
-        # Run deterministic assertions if any
         assertions = eval_def.get("assertions", [])
         if assertions:
             assertion_results.extend(run_deterministic_assertions(outputs_dir, assertions))
 
-        # Run LLM rubric if requested and defined
         if use_llm and eval_def.get("llm_rubric"):
             llm_results = run_llm_rubric(
                 outputs_dir,
@@ -187,7 +196,6 @@ def grade_eval(eval_dir: Path, eval_def: dict, use_llm: bool = False) -> dict:
             )
             assertion_results.extend(llm_results)
         elif use_llm and not eval_def.get("llm_rubric"):
-            # Use expected_output as a basic rubric
             llm_results = run_llm_rubric(
                 outputs_dir,
                 f"Does the output match this expectation: {eval_def.get('expected_output', '')}",
@@ -195,7 +203,6 @@ def grade_eval(eval_dir: Path, eval_def: dict, use_llm: bool = False) -> dict:
             )
             assertion_results.extend(llm_results)
 
-        # Compute summary
         total = len(assertion_results)
         passed = sum(1 for r in assertion_results if r["passed"])
         grading = {
@@ -208,24 +215,17 @@ def grade_eval(eval_dir: Path, eval_def: dict, use_llm: bool = False) -> dict:
             },
         }
 
-        # Save grading.json
         with open(run_dir / "grading.json", "w") as f:
             json.dump(grading, f, indent=2)
 
         results[run_type] = grading
-        print(f"    [{run_type}] {passed}/{total} passed ({grading['summary']['pass_rate']:.0%})")
+        logger.info(f"    [{run_type}] {passed}/{total} passed" f" ({grading['summary']['pass_rate']:.0%})")
 
     return results
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Grade eval outputs")
-    parser.add_argument("--iteration", type=int, required=True, help="Iteration number")
-    parser.add_argument("--eval", type=str, help="Grade specific eval by name")
-    parser.add_argument("--llm-rubric", action="store_true", help="Use LLM-based rubric grading")
-    parser.add_argument("--evals-json", type=Path, default=EVALS_JSON)
-    args = parser.parse_args()
-
+def run(args):
+    """Run grade command with parsed args."""
     evals_data = load_evals(args.evals_json)
     skill_name = evals_data["skill_name"]
     iter_dir = find_workspace(skill_name, args.iteration)
@@ -239,16 +239,11 @@ def main():
         if args.eval and eval_name != args.eval:
             continue
         if eval_name not in eval_defs:
-            print(f"  [{eval_name}] Skipping (not in evals.json)")
+            logger.warning(f"  [{eval_name}] Skipping (not in evals.json)")
             continue
 
-        print(f"  [{eval_name}]")
+        logger.info(f"  [{eval_name}]")
         grade_eval(eval_dir, eval_defs[eval_name], use_llm=args.llm_rubric)
-        print()
 
-    print(f"Done. Grading saved to {iter_dir}/eval-*/{{with,without}}_skill/grading.json")
-    print(f"\nNext: uv run python evals/aggregate.py --iteration {args.iteration}")
-
-
-if __name__ == "__main__":
-    main()
+    logger.success(f"Grading saved to {iter_dir}/eval-*/{{with,without}}_skill/grading.json")
+    logger.info(f"Next: vespaskills aggregate --iteration {args.iteration}")

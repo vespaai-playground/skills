@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-# ruff: noqa: T201
-"""
-Test whether skills trigger correctly on realistic prompts.
+"""Test whether skills trigger correctly on realistic prompts.
 
 Runs Claude Code with the plugin installed (--verbose --output-format stream-json)
 and parses the event stream to detect whether a specific skill was invoked.
@@ -9,20 +6,12 @@ and parses the event stream to detect whether a specific skill was invoked.
 Uses a CSV file with columns: id, skill, should_trigger, category, prompt
 
 Usage:
-    # Run all trigger evals
-    uv run python evals/run_trigger_evals.py
-
-    # Run only for a specific skill
-    uv run python evals/run_trigger_evals.py --skill schema-authoring
-
-    # Run a specific test by ID
-    uv run python evals/run_trigger_evals.py --id sa-03
-
-    # Multiple trials for reliability (skill-creator recommends 3)
-    uv run python evals/run_trigger_evals.py --trials 3
+    vespaskills trigger
+    vespaskills trigger --skill schema-authoring
+    vespaskills trigger --id sa-03
+    vespaskills trigger --trials 3
 """
 
-import argparse
 import csv
 import json
 import os
@@ -31,21 +20,15 @@ import sys
 import time
 from pathlib import Path
 
-from config import REPO_ROOT
+from vespaskills.evals.config import REPO_ROOT
+from vespaskills.logger import get_logger
+
+logger = get_logger()
 
 # Trigger evals are Claude-only (requires stream-json event parsing)
 CLAUDE_CLI = os.environ.get("CLAUDE_CLI", "claude")
 CLAUDE_MODEL = os.environ.get("EVAL_MODEL", "")
 
-# Map skill names to the patterns that indicate invocation in the event stream.
-# Claude Code skills show up as Skill tool_use calls in the stream-json output.
-# The "skill" field in the tool_use input contains the skill identifier.
-# For plugin skills, this may be a qualified name like "vespa-support:vespa-docs"
-# or a SKILL.md that was read from the skill directory.
-#
-# This mapping lets us define which skill identifiers count as "triggered"
-# for each skill we're testing. Multiple identifiers handle cases where
-# Claude uses a related skill from the same plugin.
 SKILL_TRIGGER_PATTERNS = {
     "schema-authoring": [
         "schema-authoring",
@@ -72,15 +55,7 @@ def load_trigger_evals(csv_path: Path, skill: str | None = None, eval_id: str | 
 
 
 def parse_triggered_skills(stdout: str) -> list[str]:
-    """
-    Parse stream-json output to find which skills were invoked.
-
-    Looks for tool_use events where name="Skill" — the input.skill field
-    contains the skill identifier that was triggered.
-
-    Also detects Read tool calls targeting SKILL.md files, which indicates
-    Claude loaded a skill's content directly.
-    """
+    """Parse stream-json output to find which skills were invoked."""
     triggered = []
     for line in stdout.strip().split("\n"):
         if not line.strip():
@@ -91,14 +66,12 @@ def parse_triggered_skills(stdout: str) -> list[str]:
             continue
 
         if evt.get("type") != "assistant":
-            # Also check user messages for skill launch confirmations
             if evt.get("type") == "user":
                 msg = evt.get("message", {})
                 for block in msg.get("content", []):
                     if isinstance(block, dict) and block.get("type") == "tool_result":
                         content = block.get("content", "")
                         if isinstance(content, str) and "launching skill:" in content.lower():
-                            # Extract skill name from "Launching skill: foo"
                             skill_id = content.split(":", 1)[-1].strip()
                             triggered.append(skill_id.lower())
             continue
@@ -112,13 +85,10 @@ def parse_triggered_skills(stdout: str) -> list[str]:
                 tool_name = block.get("name", "")
                 tool_input = block.get("input", {})
 
-                # Skill tool invocation
                 if tool_name == "Skill":
                     skill_id = tool_input.get("skill", "")
                     if skill_id:
                         triggered.append(skill_id.lower())
-
-                # Direct Read of a SKILL.md file
                 elif tool_name == "Read":
                     file_path = tool_input.get("file_path", "")
                     if "SKILL.md" in file_path:
@@ -128,11 +98,7 @@ def parse_triggered_skills(stdout: str) -> list[str]:
 
 
 def check_skill_triggered(triggered_skills: list[str], skill_name: str) -> tuple[bool, list[str]]:
-    """
-    Check if any triggered skills match the target skill.
-
-    Returns (triggered: bool, matched_patterns: list[str])
-    """
+    """Check if any triggered skills match the target skill."""
     patterns = SKILL_TRIGGER_PATTERNS.get(skill_name, [skill_name.lower()])
     matched = []
 
@@ -146,17 +112,18 @@ def check_skill_triggered(triggered_skills: list[str], skill_name: str) -> tuple
 
 
 def run_trigger_test(prompt: str, skill_name: str, timeout: int = 60) -> dict:
-    """
-    Run Claude with the plugin installed and detect skill triggering
-    from the stream-json event output.
-    """
+    """Run Claude with the plugin installed and detect skill triggering."""
     cmd = [
         CLAUDE_CLI,
-        "-p", prompt,
-        "--output-format", "stream-json",
+        "-p",
+        prompt,
+        "--output-format",
+        "stream-json",
         "--verbose",
-        "--max-turns", "3",  # Allow enough turns for skill loading + one response
-        "--plugin-dir", str(REPO_ROOT),
+        "--max-turns",
+        "3",
+        "--plugin-dir",
+        str(REPO_ROOT),
     ]
 
     if CLAUDE_MODEL:
@@ -197,23 +164,15 @@ def run_trigger_test(prompt: str, skill_name: str, timeout: int = 60) -> dict:
         }
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run skill trigger evaluations")
-    parser.add_argument("--csv", type=Path, default=REPO_ROOT / "evals" / "trigger_evals.csv")
-    parser.add_argument("--skill", type=str, help="Filter by skill name")
-    parser.add_argument("--id", type=str, help="Run specific test by ID")
-    parser.add_argument("--trials", type=int, default=1, help="Trials per test (default: 1, recommended: 3)")
-    parser.add_argument("--timeout", type=int, default=90, help="Timeout per run in seconds")
-    args = parser.parse_args()
-
+def run(args):
+    """Run trigger eval command with parsed args."""
     cases = load_trigger_evals(args.csv, args.skill, args.id)
     if not cases:
-        print("No test cases found.")
+        logger.error("No test cases found.")
         sys.exit(1)
 
-    print(f"Running {len(cases)} trigger evals ({args.trials} trial(s) each)")
-    print(f"Model: {CLAUDE_MODEL or '(default)'}")
-    print()
+    logger.info(f"Running {len(cases)} trigger evals ({args.trials} trial(s) each)")
+    logger.info(f"Model: {CLAUDE_MODEL or '(default)'}")
 
     results = []
     correct = 0
@@ -227,55 +186,54 @@ def main():
         prompt = case["prompt"]
 
         trial_results = []
-        for trial in range(args.trials):
+        for _trial in range(args.trials):
             r = run_trigger_test(prompt, skill, timeout=args.timeout)
             trial_results.append(r)
 
-        # Majority vote across trials
         trigger_count = sum(1 for r in trial_results if r["triggered"])
         triggered = trigger_count > args.trials / 2
 
-        # Collect all triggered skills across trials
         all_triggered = []
         for r in trial_results:
             all_triggered.extend(r["triggered_skills"])
 
-        # Evaluate correctness
         if should:
             passed = triggered
         else:
             passed = not triggered
 
-        label = "PASS" if passed else "FAIL"
         trigger_str = f"triggered={trigger_count}/{args.trials}"
         expected_str = "should_trigger" if should else "should_NOT_trigger"
-
         skills_str = f" skills={list(set(all_triggered))}" if all_triggered else ""
-        print(f"  [{label}] {case_id} ({category}, {expected_str}): {trigger_str}{skills_str}")
-        if not passed:
-            print(f"         prompt: {prompt[:80]}...")
 
-        results.append({
-            "id": case_id,
-            "skill": skill,
-            "should_trigger": should,
-            "category": category,
-            "prompt": prompt,
-            "triggered": triggered,
-            "trigger_count": trigger_count,
-            "trials": args.trials,
-            "passed": passed,
-            "all_triggered_skills": list(set(all_triggered)),
-            "trial_durations_ms": [r["duration_ms"] for r in trial_results],
-        })
+        if passed:
+            logger.success(f"  [PASS] {case_id} ({category}, {expected_str}): {trigger_str}{skills_str}")
+        else:
+            logger.error(f"  [FAIL] {case_id} ({category}, {expected_str}): {trigger_str}{skills_str}")
+            logger.info(f"         prompt: {prompt[:80]}...")
+
+        results.append(
+            {
+                "id": case_id,
+                "skill": skill,
+                "should_trigger": should,
+                "category": category,
+                "prompt": prompt,
+                "triggered": triggered,
+                "trigger_count": trigger_count,
+                "trials": args.trials,
+                "passed": passed,
+                "all_triggered_skills": list(set(all_triggered)),
+                "trial_durations_ms": [r["duration_ms"] for r in trial_results],
+            }
+        )
 
         if passed:
             correct += 1
         total += 1
 
-    # Summary
-    print(f"\n{'=' * 60}")
-    print(f"Results: {correct}/{total} passed ({correct / total:.0%})")
+    logger.info("=" * 60)
+    logger.info(f"Results: {correct}/{total} passed ({correct / total:.0%})")
 
     by_category = {}
     for r in results:
@@ -286,16 +244,15 @@ def main():
             by_category[cat]["passed"] += 1
 
     for cat, stats in by_category.items():
-        print(f"  {cat}: {stats['passed']}/{stats['total']} ({stats['passed'] / stats['total']:.0%})")
+        logger.info(f"  {cat}: {stats['passed']}/{stats['total']}" f" ({stats['passed'] / stats['total']:.0%})")
 
-    # Save results
     workspace = REPO_ROOT / f"{cases[0]['skill']}-workspace"
     workspace.mkdir(parents=True, exist_ok=True)
     out_path = workspace / "trigger_eval_results.json"
     with open(out_path, "w") as f:
-        json.dump({"results": results, "summary": {"correct": correct, "total": total}}, f, indent=2)
-    print(f"\nSaved to: {out_path}")
-
-
-if __name__ == "__main__":
-    main()
+        json.dump(
+            {"results": results, "summary": {"correct": correct, "total": total}},
+            f,
+            indent=2,
+        )
+    logger.success(f"Saved to: {out_path}")

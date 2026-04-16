@@ -98,9 +98,14 @@ class ClaudeProvider(Provider):
 
     def _run(self, prompt: str, work_dir: Path, timeout: int) -> RunResult:
         cmd = [
-            self.cli, "-p", prompt,
-            "--output-format", "json",
-            "--max-turns", str(self.max_turns),
+            self.cli,
+            "-p",
+            prompt,
+            "--output-format",
+            "json",
+            "--max-turns",
+            str(self.max_turns),
+            "--dangerously-skip-permissions",
         ]
         if self.model:
             cmd.extend(["--model", self.model])

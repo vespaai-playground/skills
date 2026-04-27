@@ -58,6 +58,9 @@ def main():
         default="",
         help="Workspace dir suffix (e.g. '-discovery' for eval-discovery outputs)",
     )
+    p_agg.add_argument(
+        "-q", "--quiet", action="store_true", help="Suppress markdown report stdout (still written to file)"
+    )
 
     # --- trigger ---
     p_trig = subparsers.add_parser("trigger", help="Run skill trigger evaluations")

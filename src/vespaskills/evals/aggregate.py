@@ -220,7 +220,7 @@ def run(args):
 
     md_path = iter_dir / "benchmark.md"
     md = render_markdown(benchmark)
-    md_path.write_text(md)
+    md_path.write_text(md, encoding="utf-8")
 
     if not getattr(args, "quiet", False):
         print(md)

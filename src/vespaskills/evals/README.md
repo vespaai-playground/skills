@@ -118,7 +118,7 @@ uv run python evals/run_evals.py --model claude-sonnet-4-20250514
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `EVAL_MODEL` | (CLI default) | Model to use |
-| `EVAL_TIMEOUT` | `120` | Timeout per run in seconds |
+| `EVAL_TIMEOUT` | `180` | Timeout per run in seconds |
 | `EVAL_MAX_TURNS` | `20` | Max agent turns per run |
 | `CLAUDE_CLI` | `claude` | Path to Claude CLI binary |
 

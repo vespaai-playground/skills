@@ -10,7 +10,7 @@ Usage:
 
 Configuration via environment variables:
     EVAL_MODEL     - Model to use (e.g. "claude-sonnet-4-20250514")
-    EVAL_TIMEOUT   - Timeout in seconds (default: 120)
+    EVAL_TIMEOUT   - Timeout in seconds (default: 180)
     EVAL_MAX_TURNS - Max agent turns (default: 20)
     CLAUDE_CLI     - Path to claude binary (default: "claude")
 """
@@ -39,7 +39,7 @@ class Provider:
 
     name: str = "base"
 
-    def __init__(self, model: str = "", timeout: int = 120):
+    def __init__(self, model: str = "", timeout: int = 180):
         self.model = model
         self.timeout = timeout
 
@@ -91,7 +91,7 @@ class ClaudeProvider(Provider):
 
     name = "claude"
 
-    def __init__(self, model: str = "", timeout: int = 120, max_turns: int = 20):
+    def __init__(self, model: str = "", timeout: int = 180, max_turns: int = 20):
         super().__init__(model, timeout)
         self.cli = os.environ.get("CLAUDE_CLI", "claude")
         self.max_turns = max_turns
@@ -172,10 +172,10 @@ def get_provider(model: str | None = None, timeout: int | None = None) -> Claude
 
     Args:
         model: Model override. Default: EVAL_MODEL env var.
-        timeout: Timeout in seconds. Default: EVAL_TIMEOUT env var or 120.
+        timeout: Timeout in seconds. Default: EVAL_TIMEOUT env var or 180.
     """
     return ClaudeProvider(
         model=model or os.environ.get("EVAL_MODEL", ""),
-        timeout=timeout or int(os.environ.get("EVAL_TIMEOUT", "120")),
+        timeout=timeout or int(os.environ.get("EVAL_TIMEOUT", "180")),
         max_turns=int(os.environ.get("EVAL_MAX_TURNS", "20")),
     )

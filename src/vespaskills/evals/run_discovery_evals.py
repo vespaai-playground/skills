@@ -222,7 +222,7 @@ def run(args):
     iter_dir.mkdir(parents=True, exist_ok=True)
 
     model = args.model or os.environ.get("EVAL_MODEL", "")
-    timeout = int(os.environ.get("EVAL_TIMEOUT", "120"))
+    timeout = int(os.environ.get("EVAL_TIMEOUT", "180"))
     max_turns = int(os.environ.get("EVAL_MAX_TURNS", "20"))
 
     logger.info(f"Skill: {skill_name} (DISCOVERY mode — --plugin-dir)")

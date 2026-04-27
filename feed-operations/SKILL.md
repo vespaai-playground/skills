@@ -124,33 +124,7 @@ POST /document/v1/shop/order/number/12345/order-790
 | `create` | Boolean. If `true`, an update creates the document if it does not exist (upsert). |
 | `tracelevel` | Integer 1-9. Returns trace information for debugging feed pipelines. |
 
-### Example: PUT via curl
-
-```bash
-curl -X POST \
-  -H "Content-Type: application/json" \
-  --data '{"fields":{"artist":"Radiohead","title":"OK Computer","year":1997}}' \
-  "http://localhost:8080/document/v1/mynamespace/music/docid/doc-1"
-```
-
-### Example: UPDATE via curl
-
-```bash
-curl -X PUT \
-  -H "Content-Type: application/json" \
-  --data '{"fields":{"year":{"assign":1997},"play_count":{"increment":1}}}' \
-  "http://localhost:8080/document/v1/mynamespace/music/docid/doc-1"
-```
-
-### Example: GET and DELETE via curl
-
-```bash
-# Get
-curl "http://localhost:8080/document/v1/mynamespace/music/docid/doc-1"
-
-# Delete
-curl -X DELETE "http://localhost:8080/document/v1/mynamespace/music/docid/doc-1"
-```
+For curl examples of every HTTP method against `/document/v1`, load `docs/rest-api.md`.
 
 ## CLI Commands
 
@@ -190,115 +164,21 @@ vespa feed my-feed-dir/
 
 ## Partial Update Operations
 
-When sending an `update`, each field value is wrapped in an operator object. The following operators are available:
+Every partial-update field wraps its value in an operator object. The core operator set:
 
-### assign
-
-Replace the field value entirely.
-
-```json
-{ "update": "id:ns:type::key", "fields": { "title": { "assign": "New Title" } } }
-```
-
-Works on all field types. Assigning `null` clears the field.
-
-### add (array / weightedset)
-
-Append items to an array, or add entries to a weighted set.
-
-```json
-{
-  "update": "id:ns:type::key",
-  "fields": {
-    "tags": { "add": ["rock", "alternative"] },
-    "tokens": { "add": { "word1": 1, "word2": 3 } }
-  }
-}
-```
-
-### remove (array / weightedset)
-
-Remove items from an array or entries from a weighted set.
-
-```json
-{
-  "update": "id:ns:type::key",
-  "fields": {
-    "tags": { "remove": ["rock"] },
-    "tokens": { "remove": { "word1": 0 } }
-  }
-}
-```
-
-For weighted sets, the weight value in the remove object is ignored; only the key matters.
-
-### Arithmetic operators
-
-These work on numeric fields (`int`, `long`, `float`, `double`).
-
-| Operator | Description | Example |
+| Operator | Applies to | Purpose |
 |---|---|---|
-| `increment` | Add a value | `{ "increment": 5 }` |
-| `decrement` | Subtract a value | `{ "decrement": 2 }` |
-| `multiply` | Multiply by a value | `{ "multiply": 1.5 }` |
-| `divide` | Divide by a value | `{ "divide": 2.0 }` |
+| `assign` | all types | Replace entire value. Assigning `null` clears. |
+| `add` | array, weightedset | Append/add entries. |
+| `remove` | array, weightedset | Remove entries. |
+| `increment`, `decrement`, `multiply`, `divide` | numeric | Arithmetic. |
+| `modify` | mapped/mixed tensor | Update specific tensor cells (`operation`: replace/add/multiply). |
 
-```json
-{
-  "update": "id:ns:type::key",
-  "fields": {
-    "play_count": { "increment": 1 },
-    "score": { "multiply": 0.95 }
-  }
-}
-```
+Set `"create": true` on an update (or `?create=true` on REST) for upsert semantics.
 
-### modify (tensor cells)
+**Idempotency:** `assign`, `add (weightedset)`, `remove` are idempotent; `add (array)`, arithmetic operators, and `modify (add/multiply)` are NOT. Design retry logic accordingly.
 
-Update individual cells of a mapped or mixed tensor without replacing the whole tensor.
-
-```json
-{
-  "update": "id:ns:type::key",
-  "fields": {
-    "embedding": {
-      "modify": {
-        "operation": "replace",
-        "cells": [
-          { "address": { "x": "label1" }, "value": 3.0 }
-        ]
-      }
-    }
-  }
-}
-```
-
-Supported `operation` values: `replace`, `add`, `multiply`.
-
-### create: true (upsert)
-
-When `create` is set to `true` on an update, Vespa creates the document with default field values and then applies the update if the document does not already exist.
-
-```json
-{
-  "update": "id:ns:type::key",
-  "create": true,
-  "fields": {
-    "play_count": { "increment": 1 }
-  }
-}
-```
-
-Via the REST API, pass `?create=true` as a query parameter instead.
-
-### Idempotency Notes
-
-- **assign**: Idempotent. Applying the same assign twice yields the same result.
-- **add (array)**: NOT idempotent. Repeated application appends duplicate entries.
-- **add (weightedset)**: Idempotent. Re-adding the same key with the same weight is a no-op.
-- **remove**: Idempotent. Removing an already-absent element is a no-op.
-- **increment / decrement / multiply / divide**: NOT idempotent. Repeated application compounds the effect.
-- **modify (tensor)**: Depends on the operation — `replace` is idempotent; `add` and `multiply` are not.
+For per-operator examples, full tensor-modify syntax, and detailed idempotency notes, load `docs/partial-updates.md`.
 
 ## Bulk Feeding
 
@@ -376,63 +256,9 @@ music.title =~ "^OK.*"
 
 ## Visit / Export
 
-Visiting lets you iterate over all (or a subset of) documents in a content cluster.
+Use `vespa visit` (CLI) or `GET /document/v1/` with continuation tokens to iterate over documents. Supports selection expressions (`--selection "music.year > 2000"`) and field-set filtering.
 
-### CLI
-
-```bash
-# Visit all documents of a given type
-vespa visit
-
-# Visit with a selection expression
-vespa visit --selection "music.year > 2000"
-
-# Limit the number of documents
-vespa visit --count 100
-```
-
-### REST API
-
-Use `GET /document/v1/` with query parameters for programmatic visiting:
-
-```bash
-curl "http://localhost:8080/document/v1/?cluster=content&selection=true&wantedDocumentCount=100"
-```
-
-| Parameter | Description |
-|---|---|
-| `cluster` | The content cluster name (required when more than one cluster exists). |
-| `selection` | A document selection expression. Use `true` to visit all documents. |
-| `wantedDocumentCount` | Approximate number of documents to return per request. Not a hard limit. |
-| `continuation` | Continuation token from a previous response, used to paginate through results. |
-| `timeout` | Per-request timeout. |
-| `fieldSet` | Which fields to return, e.g. `music:[document]` for all fields, or `[id]` for IDs only. |
-
-### Pagination Pattern
-
-```bash
-# First request
-RESPONSE=$(curl -s "http://localhost:8080/document/v1/?cluster=content&selection=true&wantedDocumentCount=500")
-
-# Extract continuation token and repeat
-CONTINUATION=$(echo "$RESPONSE" | jq -r '.continuation')
-curl -s "http://localhost:8080/document/v1/?cluster=content&selection=true&wantedDocumentCount=500&continuation=$CONTINUATION"
-```
-
-Repeat until the response no longer contains a `continuation` token, which signals that all matching documents have been visited.
-
-### Selection Expressions
-
-Selection expressions filter which documents are visited (or fed conditionally). Syntax examples:
-
-```
-true                                        # all documents
-music                                       # all documents of type "music"
-music.year > 2000                           # field comparison
-music.year > 2000 AND music.genre == "rock" # compound
-id.namespace == "tenant_a"                  # filter by namespace
-id.group == "customer_abc"                  # filter by group modifier
-```
+For the full pagination pattern, CLI/REST parameter tables, and selection-expression syntax, load `docs/visiting-export.md`.
 
 ## Gotchas and Common Pitfalls
 
@@ -479,8 +305,4 @@ Conditional writes (test-and-set) are evaluated on the **content node** that own
 
 Feeding operations are routed through the **distributor** on content nodes. The distributor determines the correct bucket and replica set. Under normal conditions you should not override the `route` parameter. Misconfigured routes can cause documents to be silently dropped.
 
-## Further Reading
-
-For deeper detail on JSON wire format and advanced update operations, load:
-- `docs/document-json.md` — complete JSON schema reference for all field types, tensor formats, and struct/map updates.
-- `docs/feed-clients.md` — detailed configuration and tuning of the Java `vespa-feed-client`, HTTP/2 settings, TLS, retry policies, and graceful shutdown.
+> **For deeper detail**, load `docs/partial-updates.md`, `docs/visiting-export.md`, `docs/rest-api.md`, `docs/document-json.md`, or `docs/feed-clients.md` from this skill's directory as needed.

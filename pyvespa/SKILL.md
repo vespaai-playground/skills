@@ -239,43 +239,9 @@ RankProfile(
 
 ## Deployment
 
-### Local Docker
+Two deployment targets: `VespaDocker` (local, needs 4 GB Docker memory) and `VespaCloud` (tenant + application + auth mode). Typical flow: `vespa_docker.deploy(app_package)` returns a `Vespa` instance you use for feeding/querying.
 
-```python
-from vespa.deployment import VespaDocker
-
-vespa_docker = VespaDocker(port=8080)
-app = vespa_docker.deploy(app_package)      # Returns Vespa instance
-
-# Reconnect to existing container
-vespa_docker = VespaDocker.from_container_name_or_id("vespa-container-name")
-```
-
-Docker needs at least **4 GB memory** allocated.
-
-### Vespa Cloud
-
-```python
-from vespa.deployment import VespaCloud
-
-vespa_cloud = VespaCloud(
-    tenant="my-tenant",
-    application="my-app",
-    application_package=app_package,
-    auth_client_token_id="my-token-id",   # For token-based data plane auth
-)
-
-# Deploy to dev
-app = vespa_cloud.deploy()
-
-# Or connect to existing deployment
-app = vespa_cloud.get_application(endpoint_type="token")
-```
-
-**Auth modes:**
-- **Control plane**: API key file via `key_location` or `key_content` param
-- **Data plane (mTLS)**: auto-generated cert, or provide via `Vespa(cert=..., key=...)`
-- **Data plane (token)**: set `auth_client_token_id` + `vespa_cloud_secret_token` env var
+For Docker reconnect, Vespa Cloud token/mTLS auth modes, and `get_application(endpoint_type=...)`, load `docs/deployment-auth.md`.
 
 ---
 
@@ -344,82 +310,7 @@ with app.syncio() as sess:
     print(response.number_documents_retrieved)   # Total matches
 ```
 
-### Batch Queries
-
-```python
-queries = [
-    {"yql": "select * from sources * where title contains 'vespa'", "hits": 5},
-    {"yql": "select * from sources * where title contains 'search'", "hits": 5},
-]
-responses = app.query_many(queries, num_connections=4, max_concurrent=100)
-```
-
-### Query Builder DSL
-
-```python
-import vespa.querybuilder as qb
-
-title = qb.QueryField("title")
-body = qb.QueryField("body")
-
-# Text search
-q = qb.select("*").from_("myschema").where(title.contains("vespa"))
-
-# Boolean conditions
-q = qb.select("*").from_("myschema").where(
-    qb.all(title.contains("vespa"), body.contains("search"))
-)
-
-# Nearest neighbor
-q = qb.select("*").from_("myschema").where(
-    qb.nearestNeighbor("embedding", "q", annotations={"targetHits": 100})
-)
-
-# Hybrid: text + vector with rank()
-q = qb.select("*").from_("myschema").where(
-    qb.rank(
-        qb.any(title.contains("vespa"), qb.nearestNeighbor("embedding", "q", annotations={"targetHits": 100})),
-        title.contains("vespa"),
-    )
-)
-
-# weakAnd
-q = qb.select("*").from_("myschema").where(
-    qb.weakAnd(title.contains("big"), title.contains("data"), annotations={"targetHits": 200})
-)
-
-# Pagination and ordering
-q = q.set_limit(10).set_offset(20).order_by("price", ascending=True)
-
-# Add query parameters
-q = q.param("ranking", "hybrid").param("input.query(q)", [0.1] * 384)
-
-# Build YQL string
-yql = str(q)
-```
-
-### Grouping
-
-```python
-from vespa.querybuilder import Grouping as G
-
-grouping = G.all(
-    G.group("category"),
-    G.each(G.output(G.count(), G.avg("price")))
-)
-q = qb.select("*").from_("myschema").where(title.contains("vespa")).groupby(str(grouping))
-```
-
----
-
-## Visit (Export All Documents)
-
-```python
-for slice_ in app.visit(schema="myschema", content_cluster_name="content", slices=4):
-    for response in slice_:
-        for doc in response.documents:
-            print(doc["id"], doc["fields"])
-```
+For the pyvespa Query Builder DSL (`vespa.querybuilder`), batch queries (`app.query_many`), grouping DSL, and document visiting (`app.visit`), load `docs/query-builder-dsl.md`.
 
 ---
 
@@ -436,9 +327,4 @@ for slice_ in app.visit(schema="myschema", content_cluster_name="content", slice
 
 ---
 
-## Further Reading
-
-- Load `docs/package-api.md` for the complete configuration class reference
-- Load `docs/application-api.md` for the full Vespa connection, deployment, and I/O API
-- pyvespa documentation: https://vespa-engine.github.io/pyvespa/
-- pyvespa examples: https://github.com/vespa-engine/pyvespa/tree/master/docs/sphinx/source
+> **For deeper detail**, load `docs/package-api.md`, `docs/application-api.md`, `docs/deployment-auth.md`, or `docs/query-builder-dsl.md` from this skill's directory as needed. External docs: https://vespa-engine.github.io/pyvespa/

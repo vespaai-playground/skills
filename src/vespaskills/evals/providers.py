@@ -147,11 +147,20 @@ class ClaudeProvider(Provider):
             usage = {}
             if isinstance(data, dict):
                 if "usage" in data:
-                    usage = data["usage"]
-                elif "total_cost_usd" in data:
+                    usage = dict(data["usage"])
+                if "total_cost_usd" in data:
                     usage["cost_usd"] = data["total_cost_usd"]
                 if "num_turns" in data:
                     usage["num_turns"] = data["num_turns"]
+                # Total input = fresh + cache-write + cache-read. Individual fields
+                # are billed at different rates; total_input_tokens is a volume metric.
+                input_parts = [
+                    usage.get("input_tokens", 0) or 0,
+                    usage.get("cache_creation_input_tokens", 0) or 0,
+                    usage.get("cache_read_input_tokens", 0) or 0,
+                ]
+                if any(input_parts):
+                    usage["total_input_tokens"] = sum(input_parts)
             return usage
         except (json.JSONDecodeError, TypeError):
             return {}

@@ -64,9 +64,12 @@ def run_single_eval(
         if skill_md.exists():
             skill_content = skill_md.read_text()
 
-    # Copy any fixture files into outputs dir
+    # Copy any fixture files into outputs dir. Fixture paths are resolved
+    # relative to REPO_ROOT so eval configs are location-independent.
     for fixture in eval_def.get("files", []):
         src = Path(fixture)
+        if not src.is_absolute():
+            src = REPO_ROOT / src
         if src.exists():
             dest = outputs_dir / src.name
             shutil.copy2(src, dest)

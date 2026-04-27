@@ -26,6 +26,7 @@ env/
 
 # Eval workspaces (generated outputs)
 *-workspace/
+*-workspace-*/
 
 # Node (in case of tooling)
 node_modules/

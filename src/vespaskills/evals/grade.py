@@ -26,8 +26,8 @@ def load_evals(evals_path: Path) -> dict:
         return json.load(f)
 
 
-def find_workspace(skill_name: str, iteration: int) -> Path:
-    ws = REPO_ROOT / f"{skill_name}-workspace" / f"iteration-{iteration}"
+def find_workspace(skill_name: str, iteration: int, suffix: str = "") -> Path:
+    ws = REPO_ROOT / f"{skill_name}-workspace{suffix}" / f"iteration-{iteration}"
     if not ws.exists():
         logger.error(f"Workspace not found: {ws}")
         sys.exit(1)
@@ -228,7 +228,8 @@ def run(args):
     """Run grade command with parsed args."""
     evals_data = load_evals(args.evals_json)
     skill_name = evals_data["skill_name"]
-    iter_dir = find_workspace(skill_name, args.iteration)
+    suffix = getattr(args, "workspace_suffix", "") or ""
+    iter_dir = find_workspace(skill_name, args.iteration, suffix)
 
     eval_defs = {e["name"]: e for e in evals_data["evals"]}
 
@@ -246,4 +247,5 @@ def run(args):
         grade_eval(eval_dir, eval_defs[eval_name], use_llm=args.llm_rubric)
 
     logger.success(f"Grading saved to {iter_dir}/eval-*/{{with,without}}_skill/grading.json")
-    logger.info(f"Next: vespaskills aggregate --iteration {args.iteration}")
+    suffix_hint = f" --workspace-suffix={suffix}" if suffix else ""
+    logger.info(f"Next: vespaskills aggregate --iteration {args.iteration}{suffix_hint}")

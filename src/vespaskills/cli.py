@@ -14,8 +14,8 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    # --- eval ---
-    p_eval = subparsers.add_parser("eval", help="Run skill evaluations")
+    # --- eval (injection mode — prepends SKILL.md into prompt) ---
+    p_eval = subparsers.add_parser("eval", help="Run skill evaluations (injection mode)")
     p_eval.add_argument("--eval", type=str, help="Run specific eval by name")
     p_eval.add_argument("--iteration", type=int, help="Iteration number (default: auto)")
     p_eval.add_argument("--skip-baseline", action="store_true", help="Skip without-skill runs")
@@ -23,17 +23,41 @@ def main():
     p_eval.add_argument("--evals-json", type=Path, default=EVALS_JSON, help="Path to evals.json")
     p_eval.add_argument("--model", type=str, help="Model override")
 
+    # --- eval-discovery (discovery mode — plugin loaded via --plugin-dir) ---
+    p_disc = subparsers.add_parser(
+        "eval-discovery",
+        help="Run evaluations in discovery mode (plugin via --plugin-dir)",
+    )
+    p_disc.add_argument("--eval", type=str, help="Run specific eval by name")
+    p_disc.add_argument("--iteration", type=int, help="Iteration number (default: auto)")
+    p_disc.add_argument("--skip-baseline", action="store_true", help="Skip without-plugin runs")
+    p_disc.add_argument("--skip-with-skill", action="store_true", help="Skip with-plugin runs")
+    p_disc.add_argument("--evals-json", type=Path, default=EVALS_JSON, help="Path to evals.json")
+    p_disc.add_argument("--model", type=str, help="Model override")
+
     # --- grade ---
     p_grade = subparsers.add_parser("grade", help="Grade eval outputs")
     p_grade.add_argument("--iteration", type=int, required=True, help="Iteration number")
     p_grade.add_argument("--eval", type=str, help="Grade specific eval by name")
     p_grade.add_argument("--llm-rubric", action="store_true", help="Use LLM-based rubric grading")
     p_grade.add_argument("--evals-json", type=Path, default=EVALS_JSON)
+    p_grade.add_argument(
+        "--workspace-suffix",
+        type=str,
+        default="",
+        help="Workspace dir suffix (e.g. '-discovery' for eval-discovery outputs)",
+    )
 
     # --- aggregate ---
     p_agg = subparsers.add_parser("aggregate", help="Aggregate grading results into benchmark")
     p_agg.add_argument("--iteration", type=int, required=True)
     p_agg.add_argument("--evals-json", type=Path, default=EVALS_JSON)
+    p_agg.add_argument(
+        "--workspace-suffix",
+        type=str,
+        default="",
+        help="Workspace dir suffix (e.g. '-discovery' for eval-discovery outputs)",
+    )
 
     # --- trigger ---
     p_trig = subparsers.add_parser("trigger", help="Run skill trigger evaluations")
@@ -64,6 +88,10 @@ def main():
 
     if args.command == "eval":
         from vespaskills.evals.run_evals import run
+
+        run(args)
+    elif args.command == "eval-discovery":
+        from vespaskills.evals.run_discovery_evals import run
 
         run(args)
     elif args.command == "grade":

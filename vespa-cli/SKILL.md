@@ -180,34 +180,7 @@ This removes the application from the Vespa Cloud dev zone. It does not affect p
 
 ## Production Deployments (Vespa Cloud)
 
-Production deployments in Vespa Cloud go through an automated pipeline rather than direct `vespa deploy`.
-
-### Initialize Production Config
-
-```bash
-# Generate deployment.xml and production security setup
-vespa prod init
-```
-
-This creates a `deployment.xml` with production zone declarations and prepares the required certificate configuration.
-
-### Submit to Production Pipeline
-
-```bash
-# Submit the application package for production deployment
-vespa prod deploy
-```
-
-### Deployment Pipeline
-
-The production pipeline runs through these stages:
-
-1. **Build**: the application package is validated and compiled.
-2. **System test**: automated tests run against an ephemeral test deployment.
-3. **Staging test**: the upgrade path from the currently deployed version is tested.
-4. **Production**: the application is rolled out to the declared production zones.
-
-Each stage must pass before proceeding to the next. Failures block the pipeline and require investigation.
+Use `vespa prod init` to generate `deployment.xml`, then `vespa prod deploy` to submit to the Vespa Cloud build pipeline (build → system test → staging test → production rollout). For pipeline stage details and commands, load `docs/production-deploy.md`.
 
 ## Document Operations
 
@@ -319,46 +292,7 @@ vespa query 'select * from music where true' tracelevel=5
 
 Trace output is included in the JSON response under the `trace` object. It reveals query parsing, ranking, matching, and network timing information.
 
-### Running Tests
-
-```bash
-# Run a test suite from a JSON test file
-vespa test tests/system-test.json
-
-# Run tests against Vespa Cloud
-vespa test -t cloud tests/system-test.json
-
-# Run all test files in a directory
-vespa test tests/
-```
-
-Test files are JSON documents that describe HTTP requests and expected responses. They support setup, test, and teardown steps.
-
-## Utility Commands
-
-### Clone a Sample Application
-
-```bash
-# Clone a Vespa sample application into a local directory
-vespa clone album-recommendation my-app
-
-# List available sample applications
-vespa clone -l
-```
-
-### Version Information
-
-```bash
-vespa version
-```
-
-### Generate Man Pages
-
-```bash
-vespa man
-```
-
-This generates man pages for all CLI commands in the current directory.
+For `vespa test`, `vespa clone`, `vespa version`, `vespa man`, load `docs/tests-utilities.md`.
 
 ## Global Flags
 
@@ -385,91 +319,4 @@ These flags are available on all commands and override configuration values:
 | `Cluster not found` | The CLI cannot determine which cluster to target. | Specify the cluster explicitly with `--cluster <name>`. Run `vespa status` to list available clusters. |
 | `Invalid application package` | The application package has schema or configuration errors. | Read the error details in the CLI output. Fix the reported issues in `services.xml`, schemas, or `deployment.xml` and redeploy. |
 
-## CI/CD Patterns
-
-### API Key Authentication for CI
-
-In CI environments, use an API key instead of browser-based login:
-
-```bash
-# Set the API key file path
-vespa config set api-key-file /path/to/api-key.pem
-
-# Or use environment variables for the data-plane credentials
-export VESPA_CLI_DATA_PLANE_KEY_FILE=/path/to/data-plane-private-key.pem
-export VESPA_CLI_DATA_PLANE_CERT_FILE=/path/to/data-plane-cert.pem
-```
-
-### GitHub Actions Example
-
-```yaml
-name: Deploy to Vespa Cloud
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Vespa CLI
-        run: |
-          curl -fsSL https://github.com/vespa-engine/vespa/releases/latest/download/vespa-cli_linux_amd64.tar.gz | tar xz
-          sudo mv vespa /usr/local/bin/
-
-      - name: Configure Vespa CLI
-        run: |
-          vespa config set target cloud
-          vespa config set application mytenant.myapp.default
-
-      - name: Write API key
-        run: echo "${{ secrets.VESPA_API_KEY }}" > /tmp/api-key.pem
-
-      - name: Set API key
-        run: vespa config set api-key-file /tmp/api-key.pem
-
-      - name: Deploy
-        run: vespa deploy --wait 600
-
-      - name: Run system tests
-        run: vespa test tests/system-test.json
-
-      - name: Clean up
-        if: always()
-        run: rm -f /tmp/api-key.pem
-```
-
-### Environment Variable Configuration for CI
-
-For CI systems where file-based configuration is inconvenient, use environment variables:
-
-```bash
-export VESPA_CLI_HOME=/tmp/vespa-cli-config
-export VESPA_CLI_DATA_PLANE_KEY_FILE=/tmp/data-plane-key.pem
-export VESPA_CLI_DATA_PLANE_CERT_FILE=/tmp/data-plane-cert.pem
-
-vespa config set target cloud
-vespa config set application mytenant.myapp.default
-vespa config set api-key-file /tmp/api-key.pem
-
-vespa deploy --wait 600
-```
-
-### Production Deployment in CI
-
-For production pipelines, use `vespa prod deploy` instead of `vespa deploy`:
-
-```bash
-# Submit to the production deployment pipeline
-vespa prod deploy
-```
-
-This submits the application package to the Vespa Cloud build system, which runs system and staging tests before rolling out to production zones. The command returns immediately after submission -- use the Vespa Cloud console to monitor pipeline progress.
-
-## Further Reading
-
-For the complete list of every CLI command, subcommand, and flag, load:
-- `docs/cli-reference.md` -- full command reference with all options and examples.
+> **For deeper detail**, load `docs/cli-reference.md`, `docs/ci-cd.md`, `docs/production-deploy.md`, or `docs/tests-utilities.md` from this skill's directory as needed.

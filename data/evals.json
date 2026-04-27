@@ -95,6 +95,39 @@
         {"type": "content_contains", "path": "*.sd", "pattern": "struct-field key", "text": "Map ticket-type keys indexed via struct-field"}
       ],
       "llm_rubric": "Grade this schema for correct use of complex Vespa field types:\n(1) Is venue defined as a struct inside the document block, with struct-field declarations for city and country using 'match: exact'?\n(2) Is ticket_prices a map<string, double> with struct-field key having attribute + match:exact?\n(3) Is topic_tags weightedset<string> (not weightedset<float> or array — gotcha #9)?\n(4) Is geo_location type 'position' with 'indexing: attribute | summary' (position cannot use index)?\n(5) Is flyer_image type 'raw' with 'indexing: summary' only (raw is not searchable — gotcha #8)?\n(6) Does event_description have 'summary: dynamic' for snippet generation?\n(7) Do ALL fields used in bm25() have 'index: enable-bm25'?\n(8) Does the rank profile use distance(field, geo_location) or closeness(field, geo_location) for geographic ranking?\n(9) Are struct-field declarations on the venue field (not inside the struct definition)?"
+    },
+    {
+      "id": 6,
+      "name": "extend-existing-schema",
+      "prompt": "There is an existing Vespa schema named product.sd in this directory. Read it first to understand the conventions used (field indexing patterns, rank profile structure, naming, style), then extend it. Write the updated schema to schemas/product.sd.\n\nAdd these two things, matching the EXACT conventions already in the file:\n1. A new field 'discount_percent' (float 0-100) that is filterable with range queries and usable in ranking expressions. Match how other numeric filter fields in the schema are declared.\n2. A new rank profile 'promoted' that inherits from the existing 'hybrid' profile and adds a boost proportional to discount_percent in second-phase, so items with high discounts are boosted in reranking. Follow the style of the existing rank profiles (inputs block, functions, match-features).\n\nDo NOT rewrite unrelated fields or profiles. Keep the schema structure identical to the original — only add the new field and new rank profile.",
+      "expected_output": "Updated schema preserving all existing fields/profiles, with discount_percent declared with indexing: attribute | summary and attribute: fast-search (matching price field), and a 'promoted' rank profile inheriting from hybrid that adds a discount boost in second-phase while keeping vector_score contribution.",
+      "files": ["data/fixtures/extend-existing-schema/product.sd"],
+      "assertions": [
+        {"type": "file_exists", "path": "**/product.sd", "text": "Updated schema written"},
+        {"type": "content_contains", "path": "**/product.sd", "pattern": "field discount_percent type float", "text": "discount_percent field added with correct type"},
+        {"type": "content_contains", "path": "**/product.sd", "pattern": "attribute: fast-search", "text": "discount_percent uses fast-search like other numeric filter fields"},
+        {"type": "content_contains", "path": "**/product.sd", "pattern": "rank-profile promoted inherits hybrid", "text": "promoted profile inherits from hybrid"},
+        {"type": "content_matches", "path": "**/product.sd", "pattern": "rank-profile base", "text": "Existing base profile preserved"},
+        {"type": "content_matches", "path": "**/product.sd", "pattern": "rank-profile hybrid inherits base", "text": "Existing hybrid profile preserved"},
+        {"type": "content_contains", "path": "**/product.sd", "pattern": "attribute(discount_percent)", "text": "promoted profile references discount_percent attribute in ranking"},
+        {"type": "content_contains", "path": "**/product.sd", "pattern": "prenormalized-angular", "text": "Existing embedding config preserved"}
+      ],
+      "llm_rubric": "Grade how well this extension matches the EXISTING file's conventions:\n(1) Did the model READ the existing product.sd before writing (it must have — prompt requires it)?\n(2) Is discount_percent declared identically to other numeric filter fields (price): 'indexing: attribute | summary' and 'attribute: fast-search'?\n(3) Is the 'promoted' rank profile declared with 'inherits hybrid' (not duplicating code)?\n(4) Does promoted keep or extend the existing second-phase structure rather than replacing it — ideally adding a discount term like `attribute(discount_percent) / 100` multiplied or added to the existing expression?\n(5) Does promoted preserve match-features from hybrid or add to them?\n(6) Are ALL original fields preserved verbatim — no accidental rewrites of title/description/price/embedding/etc.?\n(7) Are both original rank-profiles ('base', 'hybrid') preserved verbatim?\n(8) No new gotchas introduced — e.g. fast-search on the embedding tensor, or enable-bm25 removed from existing fields?"
+    },
+    {
+      "id": 7,
+      "name": "diagnose-and-fix",
+      "prompt": "The schema file article.sd in this directory was recently modified and is misbehaving in production. Two symptoms have been reported:\n\n1. Queries using bm25() for ranking are returning 0 for some matches, even when documents clearly contain the query terms.\n2. Filtering by exact category value (e.g. category contains 'technology') is not working as expected — the filter seems to be a no-op or matches inconsistently.\n\nRead the schema carefully, identify the ROOT CAUSE of each issue, and write a corrected version to schemas/article.sd. Make MINIMAL surgical changes — do not restructure or rewrite unrelated fields. Only fix what is actually broken.",
+      "expected_output": "Fixed schema with: (1) 'index: enable-bm25' added to the body field (currently missing — bm25(body) silently returns 0), (2) category field either gets 'index' added to its indexing pipeline (for match:exact to work) OR is switched to attribute + fast-search + match:word — either resolution is acceptable. No other changes.",
+      "files": ["data/fixtures/diagnose-and-fix/article.sd"],
+      "assertions": [
+        {"type": "file_exists", "path": "**/article.sd", "text": "Fixed schema written"},
+        {"type": "content_matches", "path": "**/article.sd", "pattern": "field body type string[\\s\\S]*?index:\\s*enable-bm25", "text": "body field has enable-bm25 added"},
+        {"type": "content_matches", "path": "**/article.sd", "pattern": "field headline type string[\\s\\S]*?index:\\s*enable-bm25", "text": "headline field preserved with enable-bm25"},
+        {"type": "content_contains", "path": "**/article.sd", "pattern": "prenormalized-angular", "text": "Embedding config preserved"},
+        {"type": "content_contains", "path": "**/article.sd", "pattern": "rank: filter", "text": "is_premium rank:filter preserved"}
+      ],
+      "llm_rubric": "Grade the diagnosis and fix:\n(1) Did the model identify BUG 1 — the body field is missing 'index: enable-bm25' (gotcha #1), causing bm25(body) to return 0 silently — and did it add enable-bm25 on body?\n(2) Did the model identify BUG 2 — the category field uses 'match: exact' but has only 'attribute' in indexing (no 'index'), so match:exact is a no-op (gotcha #2) — and fix it by EITHER adding 'index' to indexing, OR switching to attribute + fast-search + match:word?\n(3) Were the changes MINIMAL — no unrelated fields or rank profiles rewritten?\n(4) Did the model avoid introducing new bugs (e.g. removing enable-bm25 from headline, changing distance-metric on embedding, breaking the rank profiles)?\n(5) Penalty if the model rewrote the entire schema unnecessarily, added feature-flags/caveats, or missed one of the two bugs.\n(6) Bonus if the model's response shows it actually READ the file first (diagnostic reasoning) rather than guessing from the prompt symptoms."
     }
   ]
 }

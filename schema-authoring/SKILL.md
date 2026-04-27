@@ -11,7 +11,7 @@ A Vespa **schema** (`.sd` file) defines a document type: its fields, indexing be
 
 This skill applies when the user needs to create, modify, or troubleshoot `.sd` schema files -- including field definitions, indexing pipelines, match modes, tensor/HNSW config, rank profiles, structs, fieldsets, or document references.
 
-> **For deeper detail**, load `docs/field-types.md` and `docs/schema-patterns.md` from this skill's directory.
+> **For deeper detail**, load `docs/field-types.md`, `docs/schema-patterns.md`, `docs/tensors-and-hnsw.md`, `docs/example-ecommerce-schema.md`, or `docs/gotchas-extended.md` from this skill's directory as needed.
 
 ## Quick Reference
 
@@ -156,44 +156,9 @@ Note: `match: word` and `match: exact` require `index`. For attribute-only exact
 
 ## Tensor Fields and HNSW Configuration
 
-### Tensor Type Syntax
+Tensor type syntax: `tensor<value-type>(dimension-list)`. Indexed dims `x[N]`, mapped dims `x{}`, mixed `tensor<float>(cat{}, x[128])`. Configure HNSW under `index { hnsw { ... } }` on a tensor attribute field.
 
-Format: `tensor<value-type>(dimension-list)`. Value types: `float`, `double`, `int8`, `bfloat16`. Indexed dims: `x[384]`. Mapped dims: `x{}`. Mixed: `tensor<float>(cat{}, x[128])`.
-
-```sd
-field embedding type tensor<float>(x[384]) {
-    indexing: summary | attribute
-    attribute {
-        distance-metric: angular
-    }
-    index {
-        hnsw {
-            max-links-per-node: 16
-            neighbors-to-explore-at-insert: 200
-        }
-    }
-}
-```
-
-### Distance Metrics
-
-| Metric | When to use |
-|---|---|
-| `euclidean` | General-purpose; magnitude matters |
-| `angular` | Direction matters; any normalization |
-| `dotproduct` | Pre-normalized vectors; max inner product |
-| `prenormalized-angular` | Already L2-normalized vectors (saves computation) |
-| `hamming` | Binary hash codes, int8 quantized vectors |
-| `geodegrees` | Geographic coordinate points |
-
-### HNSW Parameters
-
-| Parameter | Default | Guidance |
-|---|---|---|
-| `max-links-per-node` | 16 | Higher = better recall, more memory. Range: 8-32. |
-| `neighbors-to-explore-at-insert` | 200 | Higher = better graph, slower feeding. Range: 100-500. |
-
-Query-time exploration is controlled by `hnsw.exploreAdditionalHits` and `approximate` query parameters, not by the schema.
+For the full distance-metric table, HNSW parameter guidance, and a complete tensor-field example, load `docs/tensors-and-hnsw.md`.
 
 ## Struct Types
 
@@ -285,164 +250,7 @@ Rank profiles support **inheritance** -- child profiles override or extend paren
 
 **Adding fields:** Safe on a running system. Existing documents get empty/default values. Attribute fields consume memory even when empty.
 
-## Complete Example: E-Commerce Product Schema
-
-```sd
-schema product {
-    document product {
-        struct price_range {
-            field min type double {}
-            field max type double {}
-            field currency type string {}
-        }
-        field product_id type string {
-            indexing: summary | attribute
-            attribute: fast-search
-        }
-        field title type string {
-            indexing: summary | index
-            index: enable-bm25
-            bolding: on
-        }
-        field description type string {
-            indexing: summary | index
-            index: enable-bm25
-            summary: dynamic
-        }
-        field brand type string {
-            indexing: summary | index | attribute
-            match: word
-            attribute: fast-search
-            rank: filter
-        }
-        field category type array<string> {
-            indexing: summary | attribute
-            attribute: fast-search
-        }
-        field tags type weightedset<string> {
-            indexing: summary | attribute
-        }
-        field price type double {
-            indexing: summary | attribute
-            attribute: fast-search
-        }
-        field sale_price type price_range {
-            indexing: summary
-            struct-field min      { indexing: attribute }
-            struct-field max      { indexing: attribute }
-            struct-field currency { indexing: attribute  match: exact }
-        }
-        field in_stock type bool {
-            indexing: summary | attribute
-            attribute: fast-search
-            rank: filter
-        }
-        field rating type float {
-            indexing: summary | attribute
-        }
-        field review_count type int {
-            indexing: summary | attribute
-        }
-        field created_at type long {
-            indexing: summary | attribute
-            attribute: fast-search
-        }
-        field image_url type uri {
-            indexing: summary
-        }
-        field embedding type tensor<float>(x[384]) {
-            indexing: summary | attribute
-            attribute {
-                distance-metric: prenormalized-angular
-            }
-            index {
-                hnsw {
-                    max-links-per-node: 16
-                    neighbors-to-explore-at-insert: 200
-                }
-            }
-        }
-        field attributes type map<string, string> {
-            indexing: summary
-            struct-field key   { indexing: attribute  match: exact }
-            struct-field value { indexing: attribute }
-        }
-    }
-    fieldset default {
-        fields: title, description
-    }
-    rank-profile default {
-        first-phase {
-            expression: nativeRank(title) + nativeRank(description)
-        }
-    }
-    rank-profile bm25_ranking inherits default {
-        first-phase {
-            expression: bm25(title) * 3 + bm25(description)
-        }
-    }
-    rank-profile semantic inherits default {
-        inputs {
-            query(query_embedding) tensor<float>(x[384])
-        }
-        first-phase {
-            expression: closeness(field, embedding)
-        }
-    }
-    rank-profile hybrid inherits default {
-        inputs {
-            query(query_embedding) tensor<float>(x[384])
-            query(text_weight) double: 0.6
-            query(semantic_weight) double: 0.4
-        }
-        function text_score() {
-            expression: bm25(title) * 3 + bm25(description)
-        }
-        function semantic_score() {
-            expression: closeness(field, embedding)
-        }
-        first-phase {
-            expression: text_score
-        }
-        second-phase {
-            expression {
-                query(text_weight) * normalize_linear(text_score) +
-                query(semantic_weight) * normalize_linear(semantic_score)
-            }
-            rerank-count: 200
-        }
-        match-features {
-            bm25(title)
-            bm25(description)
-            closeness(field, embedding)
-        }
-    }
-    rank-profile personalized inherits hybrid {
-        inputs {
-            query(query_embedding) tensor<float>(x[384])
-            query(text_weight) double: 0.4
-            query(semantic_weight) double: 0.3
-            query(freshness_weight) double: 0.15
-            query(popularity_weight) double: 0.15
-        }
-        function freshness_score() {
-            expression: freshness(created_at)
-        }
-        function popularity() {
-            expression: if(review_count > 0, log10(review_count) * attribute(rating), 0)
-        }
-        second-phase {
-            expression {
-                query(text_weight) * normalize_linear(text_score) +
-                query(semantic_weight) * normalize_linear(semantic_score) +
-                query(freshness_weight) * freshness_score +
-                query(popularity_weight) * normalize_linear(popularity)
-            }
-            rerank-count: 300
-        }
-    }
-}
-```
+For a comprehensive production example combining BM25, semantic search, structs, maps, weightedsets, and phased ranking (default/bm25_ranking/semantic/hybrid/personalized profiles), load `docs/example-ecommerce-schema.md`.
 
 ## Gotchas and Common Mistakes
 
@@ -461,30 +269,7 @@ field title type string { indexing: summary | index   index: enable-bm25 }
 
 **4. Tensor dimension mismatch.** Query and document tensors must share exact dimension names and sizes (`x[384]` in both, not `d[384]` vs `x[384]`).
 
-**5. Memory pressure from attributes.** Every attribute is in-memory. Use `attribute: paged` for large or rarely-accessed attribute fields.
-
-**6. Type changes on live systems.** Requires reindexing and `validation-overrides.xml`.
-
-**7. Missing `summary`.** Fields without `summary` in their indexing pipeline are not returned in results.
-
-**8. `raw` is not searchable.** Only use for binary blobs that need storage and retrieval.
-
-**9. Weightedset type restrictions.** Element type must be `string`, `int`, or `long`.
-
-**10. Reference fields require `attribute` only.** No `index`. Use `import field` for parent fields:
-
-```sd
-schema child {
-    document child {
-        field parent_ref type reference<parent> { indexing: attribute }
-    }
-    import field parent_ref.name as parent_name {}
-}
-```
-
-**11. `fast-access` on predicate, tensor, and reference attributes.** They are not supported.
-
-**12. `fast-search` on dense tensor fields.** `fast-search` only works for boolean, numeric, strings, and tensors with at least a mapped dimension.
+For gotchas 5–12 (memory/paging, type changes, reserved names, `raw` storage, weightedset type limits, references + `import field`, `fast-access`/`fast-search` restrictions), load `docs/gotchas-extended.md`.
 
 ## Agent Instructions
 
@@ -494,6 +279,3 @@ When working with Vespa schemas:
 2. Ensure every field used in `bm25()` ranking has `index: enable-bm25`.
 3. Confirm tensor dimensions are consistent between schema fields and rank profile inputs.
 4. Check that fields referenced in fieldsets, rank profiles, and summaries exist in the document.
-5. For deeper detail on types or advanced patterns, load these files from this skill's directory:
-   - `docs/field-types.md` -- exhaustive type semantics, edge cases, storage characteristics.
-   - `docs/schema-patterns.md` -- reusable patterns for multi-language, parent-child, time series, geo search.

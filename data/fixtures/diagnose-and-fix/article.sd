@@ -1,0 +1,98 @@
+schema article {
+
+    document article {
+
+        field article_id type string {
+            indexing: attribute | summary
+            attribute: fast-search
+            match: word
+        }
+
+        field headline type string {
+            indexing: index | summary
+            index: enable-bm25
+            match: text
+        }
+
+        field body type string {
+            indexing: index | summary
+            match: text
+            summary: dynamic
+        }
+
+        field author type string {
+            indexing: attribute | summary
+            attribute: fast-search
+            match: word
+        }
+
+        field category type string {
+            indexing: attribute | summary
+            match: exact
+        }
+
+        field tags type array<string> {
+            indexing: attribute | summary
+            attribute: fast-search
+        }
+
+        field published_at type long {
+            indexing: attribute | summary
+            attribute: fast-search
+        }
+
+        field is_premium type bool {
+            indexing: attribute | summary
+            rank: filter
+        }
+
+        field view_count type long {
+            indexing: attribute | summary
+        }
+
+        field embedding type tensor<float>(x[512]) {
+            indexing: attribute | index
+            attribute {
+                distance-metric: prenormalized-angular
+            }
+            index {
+                hnsw {
+                    max-links-per-node: 16
+                    neighbors-to-explore-at-insert: 200
+                }
+            }
+        }
+    }
+
+    fieldset default {
+        fields: headline, body
+    }
+
+    rank-profile base {
+        inputs {
+            query(q_embedding) tensor<float>(x[512])
+        }
+
+        function text_score() {
+            expression: bm25(headline) * 3 + bm25(body)
+        }
+
+        function freshness_score() {
+            expression: freshness(published_at)
+        }
+
+        function vector_score() {
+            expression: closeness(field, embedding)
+        }
+    }
+
+    rank-profile hybrid inherits base {
+        first-phase {
+            expression: text_score + freshness_score
+        }
+        second-phase {
+            expression: firstPhase + 5 * vector_score
+            rerank-count: 100
+        }
+    }
+}

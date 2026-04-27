@@ -125,98 +125,9 @@ On Vespa Cloud, use resource specifications instead of explicit hosts:
 
 ## Embedder Configuration
 
-Vespa supports embedding models as built-in components inside the container cluster. This lets the application convert text to vectors at query time and indexing time without an external service.
+Vespa can run embedding models as built-in container components (`hugging-face-embedder`, `colbert-embedder`, `splade-embedder`) — the application converts text to vectors at index and query time without calling an external service. Embedders are declared as `<component>` elements inside the container cluster and referenced from a schema's indexing pipeline via `embed <component-id>`.
 
-### Hugging Face Embedder
-
-The `hugging-face-embedder` component loads a Hugging Face tokenizer and an ONNX embedding model:
-
-```xml
-<container id="default" version="1.0">
-  <document-api/>
-  <search/>
-
-  <component id="my_embedder" type="hugging-face-embedder">
-    <!-- Path to the HF tokenizer.json file -->
-    <transformer-model url="https://huggingface.co/e5-small-v2/resolve/main/model.onnx"/>
-    <tokenizer-model url="https://huggingface.co/e5-small-v2/resolve/main/tokenizer.json"/>
-
-    <!-- Maximum number of tokens per input -->
-    <max-tokens>512</max-tokens>
-
-    <!-- Transformer token type IDs (pooling strategy) -->
-    <pooling-strategy>mean</pooling-strategy>
-  </component>
-
-  <nodes count="2">
-    <resources vcpu="4.0" memory="16Gb" disk="100Gb"/>
-  </nodes>
-</container>
-```
-
-You reference the embedder in a schema like this:
-
-```
-field my_embedding type tensor<float>(x[384]) {
-    indexing: input my_text | embed my_embedder | attribute | index
-    attribute {
-        distance-metric: angular
-    }
-    index {
-        hnsw {
-            max-links-per-node: 16
-            neighbors-to-explore-at-insert: 200
-        }
-    }
-}
-```
-
-### GPU Acceleration for Embedders
-
-On Vespa Cloud, enable GPU for inference on embedder components:
-
-```xml
-<container id="default" version="1.0">
-  <document-api/>
-  <search/>
-
-  <component id="my_embedder" type="hugging-face-embedder">
-    <transformer-model url="https://huggingface.co/model/resolve/main/model.onnx"/>
-    <tokenizer-model url="https://huggingface.co/model/resolve/main/tokenizer.json"/>
-  </component>
-
-  <nodes count="1">
-    <resources vcpu="4.0" memory="16Gb" disk="100Gb">
-      <gpu count="1" memory="16Gb"/>
-    </resources>
-  </nodes>
-</container>
-```
-
-### Other Embedders
-
-Vespa provides additional built-in embedder types:
-
-**ColBERT Embedder** -- produces multi-token tensor representations for late-interaction retrieval (MaxSim):
-
-```xml
-<component id="my_colbert" type="colbert-embedder">
-  <transformer-model url="https://huggingface.co/colbert-model/resolve/main/model.onnx"/>
-  <tokenizer-model url="https://huggingface.co/colbert-model/resolve/main/tokenizer.json"/>
-  <max-tokens>512</max-tokens>
-</component>
-```
-
-**SPLADE Embedder** -- produces sparse learned representations:
-
-```xml
-<component id="my_splade" type="splade-embedder">
-  <transformer-model url="https://huggingface.co/splade-model/resolve/main/model.onnx"/>
-  <tokenizer-model url="https://huggingface.co/splade-model/resolve/main/tokenizer.json"/>
-</component>
-```
-
-Refer to the Vespa documentation for the full list of embedder types and their configuration options.
+For full XML configuration of each embedder type, GPU acceleration setup, and schema integration, load `docs/embedders.md`.
 
 ## deployment.xml
 
@@ -277,109 +188,14 @@ The type declaration is required when passing tensor values as query parameters 
 
 ## CLI Commands
 
-The Vespa CLI (`vespa`) is used for deploying, feeding, querying, and managing applications.
+The Vespa CLI (`vespa`) deploys application packages, feeds documents, runs queries, and manages authentication. For the full command surface, use the **vespa-cli** skill — it covers every subcommand, flag, auth mode, and CI pattern in depth.
 
-### Deploy
-
-```bash
-# Deploy the application package in the current directory
-vespa deploy
-
-# Deploy a specific application package directory
-vespa deploy myapp/
-
-# Deploy to Vespa Cloud (requires authentication)
-vespa deploy --target cloud
-
-# Deploy to a specific Vespa Cloud instance
-vespa deploy --target cloud --instance my-instance
-```
-
-### Status
+Minimum commands to deploy this application package:
 
 ```bash
-# Check the status of the Vespa deployment
-vespa status
-
-# Wait for deployment to converge (up to N seconds)
-vespa status --wait 300
-```
-
-### Configuration
-
-```bash
-# Set the target for CLI commands
-vespa config set target local         # http://localhost:8080 (default)
-vespa config set target cloud         # Vespa Cloud
-vespa config set target http://vespa-host:8080
-
-# Set application for Vespa Cloud
-vespa config set application my-tenant.my-app
-
-# Set instance for Vespa Cloud
-vespa config set instance my-instance
-
-# View current configuration
-vespa config get
-```
-
-### Authentication (Vespa Cloud)
-
-```bash
-# Log in to Vespa Cloud
-vespa auth login
-
-# Create a data-plane certificate for your application
-vespa auth cert
-```
-
-### Clone a Sample Application
-
-```bash
-# List available sample applications
-vespa clone -l
-
-# Clone a specific sample application
-vespa clone album-recommendation myapp/
-```
-
-### Feeding Documents
-
-```bash
-# Feed a single JSON document
-vespa document put my_doc.json
-
-# Feed a JSON-lines file (one operation per line)
-vespa feed docs.jsonl
-
-# Feed with a specific target
-vespa feed --target http://localhost:8080 docs.jsonl
-```
-
-### Querying
-
-```bash
-# Run a simple query
-vespa query "select * from my_doc where true"
-
-# Run a query with YQL and parameters
-vespa query "yql=select * from my_doc where userQuery()" "query=search terms"
-
-# Run a query with a specific ranking profile
-vespa query "yql=select * from my_doc where true" "ranking.profile=my_rank"
-```
-
-### Document Operations
-
-```bash
-# Get a document by ID
-vespa document get id:mynamespace:my_doc::1
-
-# Update a document
-vespa document update my_update.json
-
-# Delete a document
-vespa document remove id:mynamespace:my_doc::1
+vespa config set target local   # or 'cloud'
+vespa deploy                    # from the application package directory
+vespa status --wait 300         # wait for convergence
 ```
 
 ## Gotchas and Common Mistakes
@@ -457,12 +273,4 @@ Always set the `mode` attribute on `<document>` inside `<documents>`. The valid 
 
 `<redundancy>` must not exceed the number of content nodes. If you set `<redundancy>2</redundancy>` but only have one content node, deployment will emit a warning and data will not be fully redundant.
 
-## Further Reading
-
-For detailed element-by-element reference of `services.xml`, load the companion file:
-
-```
-docs/services-xml.md
-```
-
-This file contains the full specification of every element, attribute, and allowed nesting in `services.xml`, including advanced container and content cluster options, document-processing chains, and handler configuration.
+> **For deeper detail**, load `docs/services-xml.md` or `docs/embedders.md` from this skill's directory as needed. Related skills: `schema-authoring` (for `.sd` files), `vespa-cli` (for CLI surface), `feed-operations` (for document CRUD).

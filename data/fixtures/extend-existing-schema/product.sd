@@ -1,0 +1,91 @@
+schema product {
+
+    document product {
+
+        field product_id type string {
+            indexing: attribute | summary
+            attribute: fast-search
+            match: word
+        }
+
+        field title type string {
+            indexing: index | summary
+            index: enable-bm25
+            match: text
+        }
+
+        field description type string {
+            indexing: index | summary
+            index: enable-bm25
+            summary: dynamic
+        }
+
+        field brand type string {
+            indexing: attribute | summary
+            attribute: fast-search
+            match: word
+        }
+
+        field category_path type array<string> {
+            indexing: attribute | summary
+            attribute: fast-search
+        }
+
+        field price type float {
+            indexing: attribute | summary
+            attribute: fast-search
+        }
+
+        field in_stock type bool {
+            indexing: attribute | summary
+            rank: filter
+        }
+
+        field created_at type long {
+            indexing: attribute | summary
+            attribute: fast-search
+        }
+
+        field embedding type tensor<float>(x[384]) {
+            indexing: attribute | index
+            attribute {
+                distance-metric: prenormalized-angular
+            }
+            index {
+                hnsw {
+                    max-links-per-node: 16
+                    neighbors-to-explore-at-insert: 200
+                }
+            }
+        }
+    }
+
+    fieldset default {
+        fields: title, description
+    }
+
+    rank-profile base {
+        inputs {
+            query(q_embedding) tensor<float>(x[384])
+        }
+
+        function text_score() {
+            expression: bm25(title) * 2 + bm25(description)
+        }
+
+        function vector_score() {
+            expression: closeness(field, embedding)
+        }
+    }
+
+    rank-profile hybrid inherits base {
+        first-phase {
+            expression: text_score
+        }
+        second-phase {
+            expression: text_score + 10 * vector_score
+            rerank-count: 200
+        }
+        match-features: text_score vector_score bm25(title) bm25(description)
+    }
+}

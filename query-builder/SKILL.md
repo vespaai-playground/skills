@@ -9,10 +9,7 @@ description: "Build Vespa YQL queries and design rank profiles. Covers YQL synta
 
 Vespa queries use YQL (Vespa Query Language), a SQL-like language for search and relevance. A query flows through three stages: **matching** (YQL WHERE clause selects candidates), **ranking** (a rank profile scores each match), and **grouping** (optional aggregation into buckets). Queries are HTTP requests to `/search/` with YQL in the `yql` parameter.
 
-For deeper reference, load these companion docs:
-- `docs/yql-operators.md` -- exhaustive operator reference with edge-case notes.
-- `docs/rank-features.md` -- full rank feature catalog with formulas.
-- `docs/grouping.md` -- advanced grouping patterns and examples.
+> **For deeper detail**, load `docs/yql-operators.md`, `docs/rank-features.md`, `docs/grouping.md`, `docs/ml-models.md`, or `docs/query-tensors.md` from this skill's directory as needed.
 
 ## YQL Quick Reference
 
@@ -287,86 +284,19 @@ rank-profile debug inherits default {
 
 ## ML Model Integration
 
-### ONNX Models
+Vespa can embed ONNX, XGBoost, and LightGBM models directly in a rank profile's `second-phase` expression. Export as JSON under `models/`; reference with `onnx(model_name).output`, `xgboost("path")`, or `lightgbm("path")`. For full syntax, input/output tensor wiring, and model file conventions, load `docs/ml-models.md`.
 
-```sd
-rank-profile onnx-ranker {
-    onnx-model my_model {
-        file: models/ranker.onnx
-        input input_ids: my_input_tensor
-        output logits: my_output
-    }
-    function my_input_tensor() {
-        expression: tensor<float>(d0[1], d1[10])(...)
-    }
-    second-phase {
-        expression: onnx(my_model).my_output
-        rerank-count: 100
-    }
-}
-```
+## Rank Features
 
-### XGBoost and LightGBM
+Common features: `bm25(field)`, `nativeRank(field)`, `closeness(field, tensor_field)`, `attribute(field)`, `freshness(field)`, `fieldMatch(field)`, `query(name)`, `term(n).significance`, `matchCount(field)`, `dotProduct(field, vector)`.
 
-```sd
-rank-profile xgb-ranker {
-    second-phase {
-        expression: xgboost("models/xgb_model.json")
-        rerank-count: 200
-    }
-}
-
-rank-profile lgbm-ranker {
-    second-phase {
-        expression: lightgbm("models/lgbm_model.json")
-        rerank-count: 200
-    }
-}
-```
-
-Export models as JSON under `models/`. Feature names must match Vespa rank feature names.
-
-## Rank Feature Catalog
-
-| Feature | Description |
-|---|---|
-| `bm25(field)` | BM25 text relevance score |
-| `nativeRank(field)` | Vespa's default text relevance feature |
-| `closeness(field, tensor_field)` | Inverse distance for ANN; 1.0 = identical |
-| `attribute(field)` | Raw attribute value (numeric or enum) |
-| `freshness(field)` | Time-decay score; 1.0 for now, decays for older timestamps |
-| `fieldMatch(field)` | Composite text match quality |
-| `fieldMatch(field).completeness` | Fraction of query terms matched |
-| `fieldMatch(field).proximity` | Closeness of matched terms to each other |
-| `query(name)` | Query parameter as rank feature |
-| `term(n).significance` | IDF-based significance of nth query term |
-| `matchCount(field)` | Number of matched query terms |
-| `dotProduct(field, vector)` | Dot product with document weighted set |
-| `elementSimilarity(field)` | Similarity for array-of-struct fields |
-
-For the full catalog, load `docs/rank-features.md`.
+For the full catalog with every feature, formula, and usage notes, load `docs/rank-features.md`.
 
 ## Passing Query Tensors
 
-Tensors are passed via `input.query(name)` in the query request.
+Tensors are passed via `input.query(name)` in the query request — dense (`[...array]`), sparse mapped (`{"cells": [...]}`), or mixed (`{"blocks": {...}}`). The rank profile's `inputs` block must declare a matching `tensor<float>(...)` type.
 
-**Dense tensor:**
-```json
-{ "input.query(q_embedding)": [0.1, 0.05, -0.23, "..."] }
-```
-Declared as: `query(q_embedding) tensor<float>(x[384])`
-
-**Sparse tensor (mapped):**
-```json
-{ "input.query(user_tags)": {"cells": [{"address": {"tag": "ml"}, "value": 1.0}]} }
-```
-Declared as: `query(user_tags) tensor<float>(tag{})`
-
-**Mixed tensor:**
-```json
-{ "input.query(preferences)": {"blocks": {"sports": [0.1, 0.2], "tech": [0.5, 0.3]}} }
-```
-Declared as: `query(preferences) tensor<float>(category{}, feature[64])`
+For each tensor-shape payload format with declared-type pairings, load `docs/query-tensors.md`.
 
 ## Common Gotchas
 

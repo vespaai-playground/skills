@@ -11,37 +11,37 @@ Each skill is a self-contained folder with a `SKILL.md` file as the primary refe
 
 - Path: `app-package/SKILL.md`
 - Scaffold and configure Vespa application packages, including services.xml, schemas, deployment.xml, query profiles, and embedder components.
-- Reference docs: `docs/services-xml.md`
+- Reference docs: `docs/embedders.md`, `docs/services-xml.md`
 
 ### feed-operations
 
 - Path: `feed-operations/SKILL.md`
 - Vespa document CRUD operations and bulk feeding — covers document ID format, JSON wire format for put/update/remove, REST API endpoints, CLI commands, partial updates, conditional writes, bulk feeding, and document visiting/export.
-- Reference docs: `docs/document-json.md`, `docs/feed-clients.md`
+- Reference docs: `docs/document-json.md`, `docs/feed-clients.md`, `docs/partial-updates.md`, `docs/rest-api.md`, `docs/visiting-export.md`
 
 ### pyvespa
 
 - Path: `pyvespa/SKILL.md`
 - Python API for Vespa.ai — define schemas, deploy applications, feed documents, query, and manage Vespa from Python using pyvespa.
-- Reference docs: `docs/application-api.md`, `docs/package-api.md`
+- Reference docs: `docs/application-api.md`, `docs/deployment-auth.md`, `docs/package-api.md`, `docs/query-builder-dsl.md`
 
 ### query-builder
 
 - Path: `query-builder/SKILL.md`
 - Build Vespa YQL queries and design rank profiles. Covers YQL syntax, operators, grouping, rank-profile phases, ML model integration, and query tensor inputs.
-- Reference docs: `docs/grouping.md`, `docs/rank-features.md`, `docs/yql-operators.md`
+- Reference docs: `docs/grouping.md`, `docs/ml-models.md`, `docs/query-tensors.md`, `docs/rank-features.md`, `docs/yql-operators.md`
 
 ### schema-authoring
 
 - Path: `schema-authoring/SKILL.md`
 - Writing, validating, and evolving Vespa .sd schema files — covers field types, indexing pipelines, match modes, tensors, rank profiles, structs, fieldsets, and common pitfalls.
-- Reference docs: `docs/field-types.md`, `docs/schema-patterns.md`
+- Reference docs: `docs/example-ecommerce-schema.md`, `docs/field-types.md`, `docs/gotchas-extended.md`, `docs/schema-patterns.md`, `docs/tensors-and-hnsw.md`
 
 ### vespa-cli
 
 - Path: `vespa-cli/SKILL.md`
 - Vespa CLI for deploying, managing, and debugging Vespa.ai applications -- covers target configuration, authentication, deployment lifecycle, production pipelines, document operations, log inspection, testing, and CI/CD integration.
-- Reference docs: `docs/cli-reference.md`
+- Reference docs: `docs/ci-cd.md`, `docs/cli-reference.md`, `docs/production-deploy.md`, `docs/tests-utilities.md`
 
 ## How to Use
 

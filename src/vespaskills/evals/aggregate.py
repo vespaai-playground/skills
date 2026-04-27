@@ -22,6 +22,89 @@ def load_json(path: Path) -> dict | None:
         return json.load(f)
 
 
+def _fmt(key: str, value: float) -> str:
+    if key == "pass_rate" or key == "invocation_rate":
+        return f"{value:.1%}"
+    if key == "cost_usd":
+        return f"${value:.4f}"
+    return f"{value:,.0f}"
+
+
+def _signed(key: str, value: float) -> str:
+    sign = "+" if value >= 0 else "-"
+    return f"{sign}{_fmt(key, abs(value))}"
+
+
+def render_markdown(benchmark: dict) -> str:
+    """Render benchmark.json content as a markdown report."""
+    skill = benchmark.get("skill", "?")
+    iteration = benchmark.get("iteration", "?")
+    summary = benchmark.get("run_summary", {})
+    delta = benchmark.get("delta", {})
+    per_eval = benchmark.get("per_eval", {})
+
+    metric_keys = (
+        "pass_rate",
+        "invocation_rate",
+        "total_input_tokens",
+        "output_tokens",
+        "cost_usd",
+    )
+
+    def cell(stats: dict, key: str) -> str:
+        if key not in stats:
+            return "—"
+        v = stats[key]
+        return _fmt(key, v["mean"] if isinstance(v, dict) else v)
+
+    lines = [f"# Skill Benchmark — {skill} (iteration {iteration})", ""]
+
+    if summary:
+        lines += [
+            "## Summary (mean per eval)",
+            "",
+            "| Metric | with_skill | without_skill | Δ abs | Δ % |",
+            "|---|---:|---:|---:|---:|",
+        ]
+        w = summary.get("with_skill", {})
+        wo = summary.get("without_skill", {})
+        for k in metric_keys:
+            if k not in w and k not in wo:
+                continue
+            d_abs = _signed(k, delta[k]) if k in delta else "—"
+            pct = delta.get(f"{k}_pct")
+            d_pct = f"{'+' if pct >= 0 else ''}{pct:.1%}" if pct is not None else "—"
+            lines.append(f"| {k.replace('_', ' ')} | {cell(w, k)} | {cell(wo, k)} | {d_abs} | {d_pct} |")
+        lines.append("")
+        n = w.get("eval_count") or wo.get("eval_count") or "?"
+        invoked = w.get("invoked_count")
+        if invoked is not None:
+            lines.append(f"- Evals: **{n}**, invoked (with_skill): **{invoked}/{n}**")
+        else:
+            lines.append(f"- Evals: **{n}**")
+        lines.append("")
+
+    if per_eval:
+        lines += [
+            "## Per-eval breakdown",
+            "",
+            "| Eval | pass (with) | pass (without) | invoked | cost (with) | cost (without) |",
+            "|---|:---:|:---:|:---:|---:|---:|",
+        ]
+        for name, runs in per_eval.items():
+            w = runs.get("with_skill", {})
+            o = runs.get("without_skill", {})
+            wp = f"{w['passed']}/{w['total']}" if "passed" in w else "—"
+            op = f"{o['passed']}/{o['total']}" if "passed" in o else "—"
+            inv = "✓" if w.get("invoked") else ("✗" if "invoked" in w else "—")
+            wc = _fmt("cost_usd", w["cost_usd"]) if "cost_usd" in w else "—"
+            oc = _fmt("cost_usd", o["cost_usd"]) if "cost_usd" in o else "—"
+            lines.append(f"| {name} | {wp} | {op} | {inv} | {wc} | {oc} |")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def mean_stddev(values: list[float]) -> dict:
     if not values:
         return {"mean": 0, "stddev": 0}
@@ -135,50 +218,11 @@ def run(args):
     with open(out_path, "w") as f:
         json.dump(benchmark, f, indent=2)
 
-    logger.info(f"Benchmark: {skill_name} iteration-{args.iteration}")
-    logger.info("=" * 60)
-    for config_name, stats in run_summary.items():
-        logger.info(f"  {config_name}:")
-        if "pass_rate" in stats:
-            pr = stats["pass_rate"]
-            logger.info(f"    pass_rate: {pr['mean']:.1%} +/- {pr['stddev']:.1%}")
-        if "invocation_rate" in stats:
-            logger.info(
-                f"    invocation_rate: {stats['invocation_rate']:.1%} ({stats['invoked_count']}/{stats['eval_count']})"
-            )
-        for key in usage_keys:
-            if key in stats:
-                m = stats[key]["mean"]
-                total = stats.get(f"{key}_total", 0)
-                if key == "cost_usd":
-                    logger.info(f"    {key}: ${m:.4f} avg (${total:.4f} total)")
-                else:
-                    logger.info(f"    {key}: {m:,.0f} avg ({total:,.0f} total)")
-    if delta:
-        logger.info("  delta (with_skill - without_skill):")
-        if "pass_rate" in delta:
-            d = delta["pass_rate"]
-            sign = "+" if d >= 0 else ""
-            logger.info(f"    pass_rate: {sign}{d:.1%}")
-        for key in usage_keys:
-            if key in delta:
-                d = delta[key]
-                pct = delta.get(f"{key}_pct")
-                sign = "+" if d >= 0 else ""
-                pct_str = f" ({sign}{pct:.1%})" if pct is not None else ""
-                if key == "cost_usd":
-                    logger.info(f"    {key}: {sign}${d:.4f}{pct_str}")
-                else:
-                    logger.info(f"    {key}: {sign}{d:,.0f}{pct_str}")
-    logger.info("Per-eval breakdown:")
-    for eval_name, results in per_eval.items():
-        parts = []
-        for run_type in ("with_skill", "without_skill"):
-            if run_type in results:
-                r = results[run_type]
-                pr = r.get("pass_rate", "?")
-                pr_str = f"{pr:.0%}" if isinstance(pr, float) else pr
-                parts.append(f"{run_type}={pr_str}")
-        logger.info(f"  {eval_name}: {', '.join(parts)}")
+    md_path = iter_dir / "benchmark.md"
+    md = render_markdown(benchmark)
+    md_path.write_text(md, encoding="utf-8")
 
+    if not getattr(args, "quiet", False):
+        print(md)
     logger.success(f"Saved to: {out_path}")
+    logger.success(f"Markdown report: {md_path}")

@@ -94,6 +94,10 @@ python generate.py          # Generate AGENTS.md, cursor/plugin.json, README tab
 python generate.py --check  # CI mode — exits 1 if any generated file is out of date
 ```
 
+### Evaluations
+
+Run the skill benchmark suite with `uv run vespaskills eval` / `eval-discovery` / `aggregate`. See [`evals/README.md`](evals/README.md) for the commands and an example report.
+
 ### Adding a new skill
 
 1. Create a new folder at the root: `my-skill/`

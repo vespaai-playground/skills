@@ -127,7 +127,18 @@ On Vespa Cloud, use resource specifications instead of explicit hosts:
 
 Vespa can run embedding models as built-in container components (`hugging-face-embedder`, `colbert-embedder`, `splade-embedder`) — the application converts text to vectors at index and query time without calling an external service. Embedders are declared as `<component>` elements inside the container cluster and referenced from a schema's indexing pipeline via `embed <component-id>`.
 
-For full XML configuration of each embedder type, GPU acceleration setup, and schema integration, load `docs/embedders.md`.
+The canonical declaration uses the `type` shortcut with `<transformer-model>` and `<tokenizer-model>` child elements that point at the model and tokenizer files via their `url` attribute:
+
+```xml
+<component id="e5" type="hugging-face-embedder">
+  <transformer-model url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/model.onnx"/>
+  <tokenizer-model url="https://huggingface.co/intfloat/e5-small-v2/resolve/main/tokenizer.json"/>
+</component>
+```
+
+Use the `type="hugging-face-embedder"` shortcut rather than the verbose `class="...HuggingFaceEmbedder"` + `<config name="...">` form — the type shortcut is the documented convention.
+
+For other embedder types, GPU acceleration setup, and additional schema integration, load `docs/embedders.md`.
 
 ## deployment.xml
 
@@ -245,13 +256,13 @@ If these names do not match, deployment will fail with a validation error.
 
 ### Content cluster id naming
 
-The `id` attribute on `<content>` must be a valid identifier (letters, digits, underscores). Avoid hyphens in the content cluster id because it is used to generate internal metric dimensions and config IDs where hyphens can cause issues. Use underscores instead:
+The `id` attribute on `<content>` accepts any XML NCName (letters, digits, `_`, `-`, `.`), so hyphenated ids like `my-content` are valid and deploy successfully. However, prefer underscores for new applications — the cluster id surfaces in metric dimension names and generated config IDs, where underscores integrate more cleanly with downstream tooling:
 
 ```xml
-<!-- Good -->
+<!-- Preferred -->
 <content id="my_content" version="1.0">
 
-<!-- Avoid -->
+<!-- Valid, but discouraged -->
 <content id="my-content" version="1.0">
 ```
 
@@ -271,6 +282,15 @@ Always set the `mode` attribute on `<document>` inside `<documents>`. The valid 
 
 ### Redundancy and content node count
 
-`<redundancy>` must not exceed the number of content nodes. If you set `<redundancy>2</redundancy>` but only have one content node, deployment will emit a warning and data will not be fully redundant.
+`<redundancy>` must not exceed the number of content nodes. If you set `<redundancy>2</redundancy>` but only have one content node, Vespa will silently clamp the effective redundancy to the node count and emit a warning — deployment still succeeds, but data will not be replicated as configured.
+
+Vespa also accepts `<min-redundancy>` as the now-preferred form. Both work; new applications should use `<min-redundancy>`:
+
+```xml
+<content id="my_content" version="1.0">
+  <min-redundancy>2</min-redundancy>
+  ...
+</content>
+```
 
 > **For deeper detail**, load `docs/services-xml.md` or `docs/embedders.md` from this skill's directory as needed. Related skills: `schema-authoring` (for `.sd` files), `vespa-cli` (for CLI surface), `feed-operations` (for document CRUD).

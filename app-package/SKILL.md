@@ -256,13 +256,13 @@ If these names do not match, deployment will fail with a validation error.
 
 ### Content cluster id naming
 
-The `id` attribute on `<content>` accepts any XML NCName (letters, digits, `_`, `-`, `.`), so hyphenated ids like `my-content` are valid and deploy successfully. However, prefer underscores for new applications — the cluster id surfaces in metric dimension names and generated config IDs, where underscores integrate more cleanly with downstream tooling:
+The `id` attribute on `<content>` must be a valid identifier (letters, digits, underscores). Avoid hyphens in the content cluster id because it is used to generate internal metric dimensions and config IDs where hyphens can cause issues. Use underscores instead:
 
 ```xml
-<!-- Preferred -->
+<!-- Good -->
 <content id="my_content" version="1.0">
 
-<!-- Valid, but discouraged -->
+<!-- Avoid -->
 <content id="my-content" version="1.0">
 ```
 

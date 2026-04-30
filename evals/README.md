@@ -70,3 +70,76 @@ uv run vespaskills eval --model haiku        # 1. run the agent (or eval-discove
 uv run vespaskills grade --iteration 102     # 2. score outputs against assertions
 uv run vespaskills aggregate --iteration 102 # 3. build benchmark.json + benchmark.md
 ```
+
+## Adding evals for a skill
+
+Each eval file targets exactly one skill. Use a separate file per skill — the runner reads the file via `--evals-json`, so files don't collide.
+
+### 1. Create the file
+
+`data/evals_<skill-name>.json`:
+
+```json
+{
+  "skill_name": "<skill-folder-name>",
+  "skill_path": "<skill-folder-name>",
+  "evals": [
+    {
+      "id": 1,
+      "name": "kebab-case-eval-name",
+      "prompt": "Task description. Tell the agent EXPLICITLY to save files to disk (e.g. 'Create a file named foo.xml in the current directory') — Haiku will otherwise print code in chat instead of writing it.",
+      "expected_output": "What success looks like (free text — for context only, not graded).",
+      "files": ["data/fixtures/<eval-name>/<file>"],
+      "assertions": [
+        {"type": "file_exists",      "path": "<glob>",   "text": "..."},
+        {"type": "content_contains", "path": "<glob>", "pattern": "<substring>", "text": "..."},
+        {"type": "content_matches",  "path": "<glob>", "pattern": "<regex>",     "text": "..."}
+      ],
+      "llm_rubric": "Optional. Detailed criteria for --llm-rubric grading (Sonnet judges)."
+    }
+  ]
+}
+```
+
+`path` globs are matched with `rglob` against the agent's output dir, so they find files at any depth. Fixture files listed in `files` are copied into the output dir before the agent runs.
+
+### 2. Aim for diversity across 3+ evals
+
+Cover different shapes so the suite tests breadth, not just one workflow:
+
+- **Greenfield scaffolding** — agent writes multiple files from a spec.
+- **Diagnose-and-fix** — provide a fixture with planted bugs; agent identifies and patches them. Plant only bugs that are actually documented as wrong (see step 4).
+- **Architecture / non-default features** — exercises less common parts of the skill (e.g. multi-cluster, mixed document modes).
+
+### 3. Run and iterate
+
+```bash
+uv run vespaskills eval --evals-json data/evals_<skill>.json --model haiku
+uv run vespaskills grade --iteration <N> --evals-json data/evals_<skill>.json
+uv run vespaskills aggregate --iteration <N> --evals-json data/evals_<skill>.json
+```
+
+Outputs land in `<skill>-workspace/iteration-<N>/`. Inspect the failed assertions and the actual file contents — distinguish *the agent got it wrong* (real signal) from *the assertion is wrong* (fix the eval).
+
+### 4. Verify every assertion against authoritative Vespa sources
+
+Before considering the eval done, cross-check each technical claim in prompts, expected_output, assertions, and rubric against (in priority order):
+
+1. The RNC schema at `vespa/config-model/src/main/resources/schema/*.rnc` — this is what Vespa actually validates against.
+2. The Java validation/builder code under `vespa/config-model/src/main/java/`.
+3. The official docs Markdown at `documentation/en/` (or [docs.vespa.ai](https://docs.vespa.ai) if the documentation repo isn't cloned locally).
+4. Sample apps at `vespa/sample-apps/` for real-world patterns.
+
+The local `SKILL.md` is **not** authoritative — it may overstate or simplify rules. If the SKILL.md and the Vespa source disagree, the source wins (and the SKILL.md needs a fix).
+
+### 5. Common assertion pitfalls
+
+- **Attribute-order brittleness**: regexes like `<document\s+type="X"\s+mode="Y"` fail when the agent writes attributes in the other order. Use lookaheads: `<document\b(?=[^>]*\btype="X")(?=[^>]*\bmode="Y")`.
+- **Substring matches that pass vacuously**: e.g. `hugging-face-embedder` as a substring also matches the fully-qualified Java config namespace, defeating the intent. Use a tighter regex like `type="hugging-face-embedder"`.
+- **Single-fix assertions for multi-fix bugs**: if the eval prompt accepts two valid fixes, the deterministic assertion must accept both (use alternation, e.g. `<redundancy>1</redundancy>|distribution-key="1"`) — otherwise the LLM rubric and the assertions disagree.
+- **Stale syntax**: e.g. `<redundancy>` is being superseded by `<min-redundancy>`. Match both with `<(min-)?redundancy>`.
+- **Fixture-vs-fix file collision**: in diagnose-and-fix evals, the fixture file is copied into the output dir; if the agent writes to a different filename, the unmodified fixture still matches the assertion's glob. Always tell the agent to overwrite the fixture filename in place.
+
+### 6. Improve the SKILL.md when the eval reveals a gap
+
+If `with_skill` fails an assertion that the agent would have passed given the right inline guidance, add a minimal example to `SKILL.md` and re-run with `--skip-baseline` to confirm. Keep additions under ~10 lines per change.
